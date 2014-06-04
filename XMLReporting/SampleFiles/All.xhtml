@@ -1,0 +1,27 @@
+﻿<html>
+    <head>
+           <title>Sample XHTML file</title>
+        <script>
+            if(1 < 2)
+                document.write('The < sign will normally cause xml parsing to fail, but we remove the entire script block with a regex');
+        </script>
+    </head>
+    <body>
+        <div>
+            <span>Some content</span>
+            <span>{Column_A}</span>
+            <span>{Column_B}</span>
+            <div data-foreach="group1">
+                <div data-foreach="group2">
+                    <span>{Column_D}</span>
+                    <div data-foreach="group3" attribute="{Column_E}">
+                        <span>{Column_C}, {Column_D}</span>
+                    </div>
+                </div>
+            </div>
+            <div data-foreach="group2">
+                <span>{Column_F}</span>
+            </div>
+        </div>
+    </body>
+</html>
