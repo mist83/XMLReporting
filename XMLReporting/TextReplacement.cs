@@ -51,19 +51,6 @@ namespace XMLReporting
             }
         }
 
-        public string GetResult(DataTable table, params string[] groupValues)
-        {
-            string[] groupArray = Groups.ToArray();
-            if (groupValues.Length != groupArray.Length)
-                throw new ArgumentException("Must maintain 1:1 match for group values");
-
-            IEnumerable<DataRow> rows = table.Rows.ToArray();
-            for (int i = 0; i < groupArray.Length; i++)
-                rows = rows.Where(x => object.Equals(x[groupArray[i]], groupValues[i])).ToArray();
-
-            return rows.Single()[Key.Trim('{', '}')].ToString();
-        }
-
         /// <summary>
         /// ToString
         /// </summary>

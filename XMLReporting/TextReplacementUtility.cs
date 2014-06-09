@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -59,7 +62,7 @@ namespace XMLReporting
             return textReplacements;
         }
 
-        public static string Apply(string originalXML, DataTable table, string textReplacementRegex)
+        public static string Apply(string originalXML, IDataSource source, string textReplacementRegex)
         {
             string xml = originalXML;
             MatchCollection collection = Regex.Matches(xml, @"<script>(.|\n)*</script>");
@@ -79,7 +82,7 @@ namespace XMLReporting
             foreach (XElement topLevel in topLevelGroupingElements)
             {
                 var grouping = GetGrouping(topLevel).ToArray();
-                ApplyGroups(topLevel, table, grouping);
+                ApplyGroups(topLevel, source, grouping);
             }
 
             // re-add the scripts
@@ -87,10 +90,76 @@ namespace XMLReporting
             foreach (var item in replacements)
                 final = final.Replace(item.Value.ToString(), item.Key);
 
-            var result1 = textReplacements.Skip(2).First().GetResult(table, "g1", "g2 value 0");
-            var result2 = textReplacements.Skip(4).First().GetResult(table, "g1", "g2 value 2", "g3");
+            //var result1 = table[textReplacements.Skip(2).First().Key, "g1", "g2 value 0"];
+            //var result2 = table[textReplacements.Skip(4).First().Key, "g1", "g2 value 2", "g3"];
+
+            F();
 
             return final;
+        }
+
+        [DataContract]
+        public class ReportData
+        {
+            public ReportData(string key, string value, params Group[] groups)
+            {
+                Key = key;
+                Value = value;
+                Groups = groups;
+            }
+
+            [DataMember]
+            public Group[] Groups { get; private set; }
+
+            [DataMember]
+            public string Key { get; private set; }
+
+            [DataMember]
+            public string Value { get; private set; }
+
+            public override string ToString()
+            {
+                return Groups.Any() ? string.Format("{0} -> {1}", string.Join(" ---> ", (IEnumerable<Group>)Groups), string.Format("{0}: {1}", Key, Value)) : string.Format("{0}: {1}", Key, Value);
+            }
+        }
+
+        [DataContract]
+        public class Group
+        {
+            public Group(string key, string value)
+            {
+                Key = key;
+                Value = value;
+            }
+
+            [DataMember]
+            public string Key { get; set; }
+
+            [DataMember]
+            public string Value { get; set; }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <returns></returns>
+            public override string ToString()
+            {
+                return string.Format("{0}: {1}", Key, Value);
+            }
+        }
+
+        private static void F()
+        {
+            ReportData serializedData = new ReportData("Key", Guid.NewGuid().ToString(), new Group("GROUP1", "g1 value"), new Group("GROUP2", "g2 value"));
+
+            var s = new DataContractJsonSerializer(typeof(ReportData));
+            using (FileStream stream = new FileStream(@"C:\Temp\out.json", FileMode.Create))
+                s.WriteObject(stream, serializedData);
+
+            using (FileStream stream = new FileStream(@"C:\Temp\out.json", FileMode.Open))
+            {
+                ReportData deserializedData = (ReportData)s.ReadObject(stream);
+            }
         }
 
         private static IEnumerable<XElement> GetTopLevelGroupingElements(XElement element, bool includeSelf = false)
@@ -104,14 +173,13 @@ namespace XMLReporting
             return topLevelGroupingElements;
         }
 
-        private static void ApplyGroups(XElement element, DataTable table, params Tuple<string, string>[] parentGroups)
+        private static void ApplyGroups(XElement element, IDataSource source, params Tuple<string, string>[] parentGroups)
         {
             var contents = string.Join(Environment.NewLine, element.Nodes().Select(x => x.ToString()));
             element.RemoveNodes();
 
-            var matchingRows = table.Rows.Where(x => MatchParentGroups(x, parentGroups));
-            var uniqueGroups = matchingRows.Select(x => x[parentGroups.Last().Item1]).Distinct();
-            foreach (string group in uniqueGroups)  // .ToArray().Select(x => x[g.First().Item1]).Distinct())
+            var uniqueGroups = source.GetUniqueGroups(parentGroups);
+            foreach (string group in uniqueGroups)
             {
                 string name = element.Attribute("data-foreach").Value;
 
@@ -122,49 +190,37 @@ namespace XMLReporting
                 foreach (XElement child in children)
                 {
                     var childGrouping = GetGrouping(child);
-                    ApplyGroups(child, table, childGrouping.ToArray());
+                    ApplyGroups(child, source, childGrouping.ToArray());
                 }
             }
-        }
-
-        private static bool MatchParentGroups(DataRow row, params Tuple<string, string>[] parentGroups)
-        {
-            foreach (Tuple<string, string> item in parentGroups)
-            {
-                if (item.Item2 == "*")
-                {
-                    if (row[item.Item1] == DBNull.Value)
-                        return false;
-
-                    continue;
-                }
-
-                if (!object.Equals(row[item.Item1], item.Item2))
-                    return false;
-            }
-
-            return true;
         }
 
         private static IEnumerable<Tuple<string, string>> GetGrouping(XElement element)
         {
             List<Tuple<string, string>> groupings = new List<Tuple<string, string>>();
 
+            // Find the foreach attribute (if any)
             XElement current = element;
             while (current != null)
             {
                 if (current.Attributes("data-foreach").Any())
                 {
-                    if (current.Nodes().Count() == 1 && current.FirstNode is XElement && ((XElement)current.FirstNode).Name.LocalName == "grouping")
-                    {
-                        var grouping = Tuple.Create(current.Attribute("data-foreach").Value, ((XElement)current.FirstNode).Attribute("key").Value);
-                        groupings.Insert(0, grouping);
-                    }
-                    else
-                    {
-                        var grouping = Tuple.Create(current.Attribute("data-foreach").Value, "*");
-                        groupings.Insert(0, grouping);
-                    }
+                    var grouping = Tuple.Create(current.Attribute("data-foreach").Value, "*");
+                    groupings.Add(grouping);
+                    break;
+                }
+
+                current = current.Parent;
+            }
+
+            // Find the current group (if any)
+            current = element;
+            while (current != null)
+            {
+                if (current.Name.LocalName == "grouping")
+                {
+                    var grouping = Tuple.Create(current.Parent.Attribute("data-foreach").Value, current.Attribute("key").Value);
+                    groupings.Insert(0, grouping);
                 }
 
                 current = current.Parent;
@@ -173,7 +229,7 @@ namespace XMLReporting
             return groupings;
         }
 
-        public static DataTable BuildMockTable(this IEnumerable<TextReplacement> textReplacements)
+        public static IDataSource BuildMockDataSource(this IEnumerable<TextReplacement> textReplacements)
         {
             DataTable table = new DataTable();
 
@@ -199,22 +255,24 @@ namespace XMLReporting
                 table.Columns.Add(column.Trim('{', '}'), typeof(string));
 
             // Fill with mock data
+            Guid mainItemID = Guid.NewGuid();
             DataRow newRow = table.NewRow();
             newRow["Id"] = Guid.NewGuid();
-            newRow["MainReportItemID"] = Guid.NewGuid();
+            newRow["MainReportItemID"] = mainItemID;
             newRow["group1"] = "g1";
             newRow["group2"] = "g2 value 0";
             newRow["Column_D"] = "D0";
             table.Rows.Add(newRow);
 
-            table.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "g1", "g2 value 1", "g3 v1", "A1", "B1", "C1", "D1", "E2");
-            table.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "g1", "g2 value 1", "g3 v2", "A1", "B1", "C1", "D1", "E2");
-            table.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "g1", "g2 value 1", "g3 v3", "A1", "B1", "C1", "D1", "E2");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1", "g2 value 1", "g3 v1", "A1", "B1", "C1", "D1", "E2");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1", "g2 value 1", "g3 v2", "A1", "B1", "C1", "D1", "E2");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1", "g2 value 1", "g3 v3", "A1", "B1", "C1", "D1", "E2");
 
-            table.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "g1", "g2 value 2", "g3", "A2", "B2", "C2", "D2", "E2 value");
-            table.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "g1a", "g2 value 2", "g3", "A2", "B2", "C2", "D2", "E2 value");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1", "g2 value 2", "g3", "A2", "B2", "C2", "D2", "E2 value");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1a", "g2 value 2", "g3", "A2", "B2", "C2", "D2", "E2 value");
+            table.Rows.Add(Guid.NewGuid(), mainItemID, "g1a", "g2 value 3", "g3", "A2", "B2", "C2", "D2", "E2 value");
 
-            return table;
+            return new DataTableDataSource(table);
         }
     }
 }

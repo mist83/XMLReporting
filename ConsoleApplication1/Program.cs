@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using XMLReporting;
@@ -21,11 +22,11 @@ namespace ConsoleApplication1
             Stopwatch sw = Stopwatch.StartNew();
 
             string xml = File.ReadAllText(@"C:\Users\mullman\documents\visual studio 2013\Projects\ConsoleApplication1\XMLReporting\SampleFiles\All.xhtml");
-            for (int i = 0; i < 50; i++)
+            for (int i = 0; i < 100; i++)
             {
                 string textReplacementRegex = @"\{Column_[^\}]+\}";
                 var textReplacements = TextReplacementUtility.GetTextReplacements(xml, textReplacementRegex);
-                var table = textReplacements.BuildMockTable();
+                var table = textReplacements.BuildMockDataSource();
                 var applied = TextReplacementUtility.Apply(xml, table, textReplacementRegex);
             }
 
@@ -35,10 +36,45 @@ namespace ConsoleApplication1
 
             Console.WriteLine();
 
+            TestAbort();
+
             CountLines(args.First(), args.Skip(1).ToArray());
 
             Console.Write("Press any key to continue . . . ");
             Console.ReadKey();
+        }
+
+        private static void TestAbort()
+        {
+            Thread t = new Thread(new ThreadStart(abortme));
+            t.Start();
+            Thread.Sleep(200);
+            t.Abort();
+            Thread.Sleep(1000);
+
+            Console.Write("Press any key to continue . . .");
+            Console.ReadKey();
+            return;
+        }
+
+        private static void abortme()
+        {
+            try
+            {
+                Thread.Sleep(1000);
+            }
+            catch (ThreadAbortException)
+            {
+                Console.WriteLine("Thread was aborted.");
+                try
+                {
+                    return;
+                }
+                catch
+                {
+                    Console.WriteLine("Can't call 'return' on aborted thread");
+                }
+            }
         }
 
         #region draw alien
