@@ -8,10 +8,10 @@ namespace XMLReporting
 {
     public interface IDataSource
     {
-        IEnumerable<string> GetUniqueGroups(params Tuple<string, string>[] parentGroups);
+        IEnumerable<string> GetUniqueGroups(params Group[] parentGroups);
 
-        object this[Guid itemID, string key, params Tuple<string, string>[] groups] { get; }
+        object this[Guid itemID, string key, params Group[] groups] { get; }
 
-        object this[string key, params Tuple<string, string>[] groups] { get; }
+        object this[string key, params Group[] groups] { get; }
     }
 }

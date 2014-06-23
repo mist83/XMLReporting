@@ -16,32 +16,32 @@ namespace XMLReporting
             Table = table;
         }
 
-        public IEnumerable<string> GetUniqueGroups(params Tuple<string, string>[] parentGroups)
+        public IEnumerable<string> GetUniqueGroups(params Group[] parentGroups)
         {
             var matchingRows = Table.Rows.Where(x => MatchParentGroups(x, parentGroups));
-            return matchingRows.Select(x => x[parentGroups.Last().Item1]).Distinct().OfType<string>();
+            return matchingRows.Select(x => x[parentGroups.Last().Key]).Distinct().OfType<string>();
         }
 
-        private static bool MatchParentGroups(DataRow row, params Tuple<string, string>[] parentGroups)
+        private static bool MatchParentGroups(DataRow row, params Group[] parentGroups)
         {
-            foreach (Tuple<string, string> item in parentGroups)
+            foreach (Group group in parentGroups)
             {
-                if (item.Item2 == "*")
+                if (group.Value == "*")
                 {
-                    if (row[item.Item1] == DBNull.Value)
+                    if (row[group.Key] == DBNull.Value)
                         return false;
 
                     continue;
                 }
 
-                if (!object.Equals(row[item.Item1], item.Item2))
+                if (!object.Equals(row[group.Key], group.Value))
                     return false;
             }
 
             return true;
         }
 
-        public object this[Guid itemID, string key, params Tuple<string, string>[] groups]
+        public object this[Guid itemID, string key, params Group[] groups]
         {
             get
             {
@@ -50,7 +50,7 @@ namespace XMLReporting
             }
         }
 
-        public object this[string key, params Tuple<string, string>[] groups]
+        public object this[string key, params Group[] groups]
         {
             get
             {
@@ -58,11 +58,12 @@ namespace XMLReporting
             }
         }
 
-        private object GetObject(IEnumerable<DataRow> rows, string key, params Tuple<string, string>[] groups)
+        private object GetObject(IEnumerable<DataRow> rows, string key, params Group[] groups)
         {
             IEnumerable<DataRow> filtered = rows.ToList();
-            foreach (Tuple<string, string> tuple in groups)
-                filtered = filtered.Where(x => object.Equals(x[tuple.Item1], tuple.Item2));
+
+            foreach (Group group in groups)
+                filtered = filtered.Where(x => object.Equals(x[group.Key], group.Value));
 
             return filtered.Single()[key];
         }

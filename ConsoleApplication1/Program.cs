@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using XMLReporting;
 
 namespace ConsoleApplication1
@@ -19,24 +15,41 @@ namespace ConsoleApplication1
     {
         static void Main(string[] args)
         {
-            Stopwatch sw = Stopwatch.StartNew();
+            //DrawRedditAlien(width: 60);
+            var a = TimeSpan.FromSeconds(12345).ToString();
+            var b = TimeSpan.FromSeconds(12390).ToString("hh\\:mm\\:ss");
 
-            string xml = File.ReadAllText(@"C:\Users\mullman\documents\visual studio 2013\Projects\ConsoleApplication1\XMLReporting\SampleFiles\All.xhtml");
-            for (int i = 0; i < 100; i++)
+            byte[] bytes1 = new SHA1CryptoServiceProvider().ComputeHash("input1".Select(x => (byte)x).ToArray());
+            string hex1 = string.Join(string.Empty, bytes1.Select(x => string.Format("{0:x2}", x)));
+
+            byte[] bytes2 = new SHA1CryptoServiceProvider().ComputeHash("input2".Select(x => (byte)x).ToArray());
+            string hex2 = string.Join(string.Empty, bytes2.Select(x => string.Format("{0:x2}", x)));
+
+            #region other
+
+            if ("a"[0] == 'a')
             {
-                string textReplacementRegex = @"\{Column_[^\}]+\}";
-                var textReplacements = TextReplacementUtility.GetTextReplacements(xml, textReplacementRegex);
-                var table = textReplacements.BuildMockDataSource();
-                var applied = TextReplacementUtility.Apply(xml, table, textReplacementRegex);
+                Stopwatch sw = Stopwatch.StartNew();
+
+                string xml = File.ReadAllText(@"C:\Users\mullman\documents\visual studio 2013\Projects\ConsoleApplication1\XMLReporting\SampleFiles\All.xhtml");
+                for (int i = 0; i < 1; i++)
+                {
+                    string textReplacementRegex = @"\{Column_[^\}]+\}";
+                    var textReplacements = TextReplacementUtility.GetTextReplacements(xml, textReplacementRegex);
+                    var dataSource = textReplacements.BuildMockDataSource();
+                    var expandedXML = TextReplacementUtility.Apply(xml, dataSource, textReplacementRegex);
+
+                    var expandedTextReplacements = TextReplacementUtility.GetTextReplacements(expandedXML, textReplacementRegex);
+                    var evaluatedTextReplacements = expandedTextReplacements.Select(x => x.Apply(dataSource)).ToArray();
+                }
+
+                sw.Stop();
+
+                Console.WriteLine();
+                TestAbort();
             }
 
-            sw.Stop();
-
-            //DrawAlien();
-
-            Console.WriteLine();
-
-            TestAbort();
+            #endregion
 
             CountLines(args.First(), args.Skip(1).ToArray());
 
@@ -72,14 +85,14 @@ namespace ConsoleApplication1
                 }
                 catch
                 {
-                    Console.WriteLine("Can't call 'return' on aborted thread");
+                    Console.WriteLine("Can't even call 'return' on aborted thread");
                 }
             }
         }
 
-        #region draw alien
+        #region Draw the Reddit Alien
 
-        static void DrawAlien()
+        static void DrawRedditAlien(string textToUse = "REDDIT*", int? width = null)
         {
             Console.BackgroundColor = ConsoleColor.Black;
             Console.ForegroundColor = ConsoleColor.White;
@@ -101,12 +114,14 @@ namespace ConsoleApplication1
 
             bitmap = bm;
 
-            double resizeFactor = (double)Console.BufferWidth / (double)bitmap.Width;
+            if (!width.HasValue)
+                width = Console.BufferWidth;
+
+            double resizeFactor = (double)width / (double)bitmap.Width;
             Size newSize = new Size((int)((double)bitmap.Width * resizeFactor) - 1, (int)((double)bitmap.Width * resizeFactor * .8) - 1);
             bitmap = new Bitmap(bitmap, newSize);
 
-            string textToUse = "REDDIT*";
-            int i = 0;
+            int characterIndex = 0;
 
             var colors = new HashSet<Color>();
             for (int y = 0; y < bitmap.Height; y++)
@@ -136,8 +151,8 @@ namespace ConsoleApplication1
                         if (overrideColor.HasValue)
                             Console.ForegroundColor = overrideColor.Value;
 
-                        Console.Write(textToUse[i % textToUse.Length]);
-                        i++;
+                        Console.Write(textToUse[characterIndex % textToUse.Length]);
+                        characterIndex++;
                         Console.ForegroundColor = defaultColor;
                     }
                     else

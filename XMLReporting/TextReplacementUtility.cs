@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -12,9 +12,9 @@ namespace XMLReporting
 {
     public static class TextReplacementUtility
     {
-        public static IEnumerable<TextReplacement> GetTextReplacements(string originalXML, string textReplacementRegex)
+        public static IEnumerable<TextReplacementTemplate> GetTextReplacements(string originalXML, string textReplacementRegex)
         {
-            var textReplacements = new List<TextReplacement>();
+            var textReplacements = new List<TextReplacementTemplate>();
 
             string xml = originalXML;
 
@@ -39,7 +39,7 @@ namespace XMLReporting
                             MatchCollection replacementMatches = Regex.Matches(attribute.Value, textReplacementRegex);
                             foreach (Match match in replacementMatches)
                             {
-                                var textReplacement = new TextReplacement(match.Value, element.Parent);
+                                var textReplacement = new TextReplacementTemplate(match.Value, element.Parent);
                                 textReplacements.Add(textReplacement);
                             }
                         }
@@ -51,7 +51,7 @@ namespace XMLReporting
                     MatchCollection replacementMatches = Regex.Matches(text.Value, textReplacementRegex);
                     foreach (Match match in replacementMatches)
                     {
-                        var textReplacement = new TextReplacement(match.Value, text.Parent);
+                        var textReplacement = new TextReplacementTemplate(match.Value, text.Parent);
                         textReplacements.Add(textReplacement);
                     }
                 }
@@ -90,76 +90,30 @@ namespace XMLReporting
             foreach (var item in replacements)
                 final = final.Replace(item.Value.ToString(), item.Key);
 
-            //var result1 = table[textReplacements.Skip(2).First().Key, "g1", "g2 value 0"];
-            //var result2 = table[textReplacements.Skip(4).First().Key, "g1", "g2 value 2", "g3"];
-
-            F();
+            TestDeserializedData();
 
             return final;
         }
 
-        [DataContract]
-        public class ReportData
+        private static void TestDeserializedData()
         {
-            public ReportData(string key, string value, params Group[] groups)
-            {
-                Key = key;
-                Value = value;
-                Groups = groups;
-            }
+            Stopwatch jsonSW = Stopwatch.StartNew();
 
-            [DataMember]
-            public Group[] Groups { get; private set; }
+            List<TextReplacementInstance> datas = new List<TextReplacementInstance>();
+            datas.Add(new TextReplacementInstance("Key", Guid.NewGuid().ToString(), new Group("GROUP1", "g1 value"), new Group("GROUP2a", "g2 value a")));
+            datas.Add(new TextReplacementInstance("Key", Guid.NewGuid().ToString(), new Group("GROUP1", "g1 value"), new Group("GROUP2b", "g2 value b")));
+            datas.Add(new TextReplacementInstance("Key", Guid.NewGuid().ToString(), new Group("GROUP1", "g1 value"), new Group("GROUP2c", "g2 value c")));
 
-            [DataMember]
-            public string Key { get; private set; }
-
-            [DataMember]
-            public string Value { get; private set; }
-
-            public override string ToString()
-            {
-                return Groups.Any() ? string.Format("{0} -> {1}", string.Join(" ---> ", (IEnumerable<Group>)Groups), string.Format("{0}: {1}", Key, Value)) : string.Format("{0}: {1}", Key, Value);
-            }
-        }
-
-        [DataContract]
-        public class Group
-        {
-            public Group(string key, string value)
-            {
-                Key = key;
-                Value = value;
-            }
-
-            [DataMember]
-            public string Key { get; set; }
-
-            [DataMember]
-            public string Value { get; set; }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <returns></returns>
-            public override string ToString()
-            {
-                return string.Format("{0}: {1}", Key, Value);
-            }
-        }
-
-        private static void F()
-        {
-            ReportData serializedData = new ReportData("Key", Guid.NewGuid().ToString(), new Group("GROUP1", "g1 value"), new Group("GROUP2", "g2 value"));
-
-            var s = new DataContractJsonSerializer(typeof(ReportData));
+            var s = new DataContractJsonSerializer(typeof(List<TextReplacementInstance>));
             using (FileStream stream = new FileStream(@"C:\Temp\out.json", FileMode.Create))
-                s.WriteObject(stream, serializedData);
+                s.WriteObject(stream, datas);
 
             using (FileStream stream = new FileStream(@"C:\Temp\out.json", FileMode.Open))
             {
-                ReportData deserializedData = (ReportData)s.ReadObject(stream);
+                var deserializedData = (List<TextReplacementInstance>)s.ReadObject(stream);
             }
+
+            jsonSW.Stop();
         }
 
         private static IEnumerable<XElement> GetTopLevelGroupingElements(XElement element, bool includeSelf = false)
@@ -173,7 +127,7 @@ namespace XMLReporting
             return topLevelGroupingElements;
         }
 
-        private static void ApplyGroups(XElement element, IDataSource source, params Tuple<string, string>[] parentGroups)
+        private static void ApplyGroups(XElement element, IDataSource source, params Group[] parentGroups)
         {
             var contents = string.Join(Environment.NewLine, element.Nodes().Select(x => x.ToString()));
             element.RemoveNodes();
@@ -183,7 +137,7 @@ namespace XMLReporting
             {
                 string name = element.Attribute("data-foreach").Value;
 
-                XElement contentElement = XElement.Parse(string.Format("<grouping key=\"{0}\">{1}{2}{1}</grouping>", group, Environment.NewLine, contents));
+                XElement contentElement = XElement.Parse(string.Format("<div data-group=\"{0}\">{1}{2}{1}</div>", group, Environment.NewLine, contents));
                 element.Add(contentElement);
 
                 IEnumerable<XElement> children = GetTopLevelGroupingElements(contentElement);
@@ -195,9 +149,9 @@ namespace XMLReporting
             }
         }
 
-        private static IEnumerable<Tuple<string, string>> GetGrouping(XElement element)
+        private static IEnumerable<Group> GetGrouping(XElement element)
         {
-            List<Tuple<string, string>> groupings = new List<Tuple<string, string>>();
+            List<Group> groupings = new List<Group>();
 
             // Find the foreach attribute (if any)
             XElement current = element;
@@ -205,7 +159,7 @@ namespace XMLReporting
             {
                 if (current.Attributes("data-foreach").Any())
                 {
-                    var grouping = Tuple.Create(current.Attribute("data-foreach").Value, "*");
+                    var grouping = new Group(current.Attribute("data-foreach").Value, "*");
                     groupings.Add(grouping);
                     break;
                 }
@@ -217,9 +171,9 @@ namespace XMLReporting
             current = element;
             while (current != null)
             {
-                if (current.Name.LocalName == "grouping")
+                if (current.Name.LocalName == "div" && current.Attributes("data-group").Any())
                 {
-                    var grouping = Tuple.Create(current.Parent.Attribute("data-foreach").Value, current.Attribute("key").Value);
+                    var grouping = new Group(current.Parent.Attribute("data-foreach").Value, current.Attribute("data-group").Value);
                     groupings.Insert(0, grouping);
                 }
 
@@ -229,17 +183,17 @@ namespace XMLReporting
             return groupings;
         }
 
-        public static IDataSource BuildMockDataSource(this IEnumerable<TextReplacement> textReplacements)
+        public static IDataSource BuildMockDataSource(this IEnumerable<TextReplacementTemplate> textReplacements)
         {
             DataTable table = new DataTable();
 
-            HashSet<string> groups = new HashSet<string>();
+            Dictionary<string, Group> groups = new Dictionary<string, Group>();
             HashSet<string> columns = new HashSet<string>();
             foreach (var textReplacement in textReplacements)
             {
                 columns.Add(textReplacement.Key);
                 foreach (var group in textReplacement.Groups)
-                    groups.Add(group);
+                    groups[group.Key] = group;
             }
 
             table.Columns.Add("Id", typeof(Guid));
@@ -248,8 +202,11 @@ namespace XMLReporting
             // The ID of the main report item
             table.Columns.Add("MainReportItemId", typeof(Guid));
 
-            foreach (var group in groups.Distinct().OrderBy(x => x))
-                table.Columns.Add(group, typeof(string));
+            foreach (var group in groups.Distinct().OrderBy(x => x.Key).ThenBy(x => x.Value))
+            {
+                table.Columns.Add(group.Key, typeof(string));
+                table.Columns[group.Key].ExtendedProperties["ColType"] = "Group";
+            }
 
             foreach (var column in columns.Distinct().OrderBy(x => x))
                 table.Columns.Add(column.Trim('{', '}'), typeof(string));

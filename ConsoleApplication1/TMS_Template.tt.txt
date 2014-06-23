@@ -1,0 +1,151 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.Xml" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".txt" #>
+<#@ parameter type="System.String" name="ticket" #>
+<#@ parameter type="System.String" name="procedureName" #>
+<#@ parameter type="System.String" name="tableName" #>
+<#
+	DataTable table = GetDataTable(string.Format("SELECT TOP 1 * FROM {0}", tableName));
+	var primaryKeys = GetPrimaryKeys(tableName);
+#>
+-- This file was created from a T4 template on <#Write(DateTime.Now.ToString());#>
+
+-- Any manual modifications will be lost when it is regenerated
+
+-- Ticket: MFT-<#Write(ticket);#>
+
+-- Procedure: <#Write(procedureName);#>
+
+-- Table: <#Write(tableName);#>
+
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[<#Write(procedureName);#>]') AND type in (N'P', N'PC'))
+	DROP PROCEDURE [dbo].<#Write(procedureName);#>
+
+GO
+CREATE PROCEDURE [dbo].[<#Write(procedureName);#>]
+<#
+	List<DataColumn> columns = new List<DataColumn>();
+	for(int i = 0; i < table.Columns.Count; i++)
+	{
+		if(table.Columns[i].ColumnName == "UpdatedDate")
+			continue;
+		columns.Add(table.Columns[i]);
+	}
+#>
+<#
+for(int i=0; i < columns.Count; i++)
+{
+#>
+	@<#WriteLine(columns[i].ColumnName + " " + GetColumnType(tableName, columns[i].ColumnName) + (i < columns.Count - 1 ? "," : string.Empty));
+}
+#>
+AS
+BEGIN
+	IF NOT EXISTS
+		(
+			SELECT *
+			FROM <#Write(tableName);#>
+
+			WHERE <#for(int i = 0; i < primaryKeys.Count(); i++)
+{
+#><#Write(i > 0 ? "\t\t\t\tAND " : string.Empty);#>[<#Write(primaryKeys.Skip(i).First());#>]=@<#Write(primaryKeys.Skip(i).First());#>
+
+<#
+}
+#>
+		)
+		INSERT INTO <#Write(tableName);#>(<#for(int i = 0; i < columns.Count; i++) Write("[" + columns[i].ColumnName + "], ");#>UpdatedDate)
+		VALUES (<#for(int i = 0; i < columns.Count; i++) Write("@" + columns[i].ColumnName + ", ");#>GETDATE())
+<#if(columns.Select(x => x.ColumnName).Except(primaryKeys).Any())
+{#>
+	ELSE
+	BEGIN<#
+foreach(var column in columns)
+{
+	if(primaryKeys.Contains(column.ColumnName))
+		continue;
+#>
+
+		UPDATE <#Write(tableName);#>
+
+		SET [<#Write(column.ColumnName);#>]=@<#Write(column.ColumnName);#>, UpdatedDate=GETDATE()
+		WHERE [<#Write(column.ColumnName);#>]<#Write(GetColumnType(tableName, column.ColumnName).Contains("varchar") || GetColumnType(tableName, column.ColumnName).Contains("text") ? " NOT LIKE " : "<>");#>@<#Write(column.ColumnName);#>
+
+<#
+			foreach(string primaryKey in primaryKeys)
+			{
+#>
+			AND [<#Write(primaryKey);#>]=@<#WriteLine(primaryKey);}#>
+<#
+}
+#>
+	END
+<#
+}
+#>
+END
+GO
+<#+
+    DataTable GetDataTable(string sql)
+    {
+        using (var connection = new SqlConnection(new SqlConnectionStringBuilder { DataSource = "dlabtwsql121", InitialCatalog = "TMS_Test", IntegratedSecurity = true }.ToString()))
+        {
+            connection.Open();
+            using (SqlCommand command = new SqlCommand(sql, connection))
+            {
+                DataTable table = new DataTable();
+
+                SqlDataAdapter adapter = new SqlDataAdapter { SelectCommand = command };
+                adapter.Fill(table);
+                return table;
+            }
+        }
+    }
+
+	IEnumerable<string> GetPrimaryKeys(string tableName)
+	{
+		var table = GetDataTable(string.Format(
+@"SELECT OBJECT_NAME(ic.OBJECT_ID) AS TableName,
+COL_NAME(ic.OBJECT_ID,ic.column_id) AS ColumnName
+FROM sys.indexes AS i
+INNER JOIN sys.index_columns AS ic
+ON i.OBJECT_ID = ic.OBJECT_ID
+AND i.index_id = ic.index_id
+WHERE i.is_primary_key = 1 AND OBJECT_NAME((ic.OBJECT_ID))='{0}'", tableName));
+
+		foreach(DataRow dataRow in table.Rows)
+			yield return (string)dataRow["ColumnName"];
+	}
+
+	string GetColumnType(string tableName, string columnName)
+	{
+        using (var connection = new SqlConnection(new SqlConnectionStringBuilder { DataSource = "dlabtwsql121", InitialCatalog = "TMS_Test", IntegratedSecurity = true }.ToString()))
+        {
+            connection.Open();
+            using (SqlCommand command = new SqlCommand(string.Format("SELECT * from INFORMATION_SCHEMA.COLUMNS IC where TABLE_NAME = '{0}' and COLUMN_NAME = '{1}'", tableName, columnName), connection))
+            {
+                DataTable table = new DataTable();
+
+                SqlDataAdapter adapter = new SqlDataAdapter { SelectCommand = command };
+                adapter.Fill(table);
+
+				string dataType = (string)table.Rows[0]["DATA_TYPE"];
+				switch(dataType)
+				{
+					case "varchar":
+						return string.Format("{0}({1})", dataType, table.Rows[0]["CHARACTER_MAXIMUM_LENGTH"]);
+					default:
+						return dataType;
+				}
+            }
+        }
+	}
+#>

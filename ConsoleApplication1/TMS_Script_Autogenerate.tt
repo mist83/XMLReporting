@@ -1,0 +1,44 @@
+﻿<#@ template debug="true" hostspecific="true" language="C#" #>
+<#@ output extension=".txt" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="Microsoft.VisualStudio.TextTemplating" #>
+<# 
+string templateFile = this.Host.ResolvePath("TMS_Template.tt.txt");
+string templateContent = File.ReadAllText(templateFile);
+
+var files = new Dictionary<string, Tuple<string, string>>();
+files["3609"] = Tuple.Create("TMS_Holidays_set_p", "Holidays");
+files["3610"] = Tuple.Create("TMS_MovieProgramAward_set_p", "MovieProgramAward");
+files["3611"] = Tuple.Create("TMS_MovieProgramCast_set_p", "MovieProgramCast");
+files["3612"] = Tuple.Create("TMS_MovieProgramCountry_set_p", "MovieProgramCountry");
+files["3613"] = Tuple.Create("TMS_MovieProgramCrew_set_p", "MovieProgramCrew");
+files["3614"] = Tuple.Create("TMS_MovieProgramDescription_set_p", "MovieProgramDescription");
+files["3615"] = Tuple.Create("TMS_MovieProgramGenre_set_p", "MovieProgramGenre");
+files["3616"] = Tuple.Create("TMS_MovieProgramImage_set_p", "MovieProgramImage");
+files["3617"] = Tuple.Create("TMS_MovieProgramTitle_set_p", "MovieProgramTitle");
+files["3618"] = Tuple.Create("TMS_MovieProgramRating_set_p", "MovieProgramRating");
+files["3619"] = Tuple.Create("TMS_MoviePrograms_set_p", "MoviePrograms");
+
+string directory = Path.Combine(new FileInfo(this.Host.ResolvePath("TMS_Template.tt.txt")).Directory.FullName, "TMS_SQL");
+if(Directory.Exists(directory))
+	Directory.Delete(directory, true);
+Directory.CreateDirectory(directory);
+
+foreach(var item in files)
+{
+	TextTemplatingSession session = new TextTemplatingSession();
+	session["namespacename"] = "TMS";
+	session["ticket"] = item.Key;
+	session["procedureName"] = item.Value.Item1;
+	session["tableName"] = item.Value.Item2;
+
+	var sessionHost = (ITextTemplatingSessionHost) this.Host;
+	sessionHost.Session = session;
+
+	Engine engine = new Engine();
+	string generatedContent = engine.ProcessTemplate(templateContent, this.Host);
+
+	File.WriteAllText(Path.Combine(directory, string.Format("TMS_{0}-MFT-{1}.sql", item.Key.PadLeft(8, '0'), item.Key)), generatedContent);
+}
+#>
