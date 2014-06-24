@@ -1,46 +1,38 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 
 namespace XMLReporting
 {
     /// <summary>
     /// 
     /// </summary>
-    public class TreeNode2 : TreeNode
+    public partial class TreeNode
     {
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="key"></param>
-        public TreeNode2(string key)
-            : this(null, key) { }
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
         /// <param name="group"></param>
-        /// <param name="key"></param>
-        public TreeNode2(IComparable group, string key)
+        /// <param name="results"></param>
+        public TreeNode(IComparable group, params NodeResult[] results)
+            : this()
         {
             Group = group;
-            Key = key;
+            Results = results;
         }
 
         /// <summary>
         /// Group
         /// </summary>
+        [DataMember]
         public IComparable Group { get; private set; }
 
         /// <summary>
         /// Key
         /// </summary>
-        public string Key { get; private set; }
-
-        /// <summary>
-        /// Value
-        /// </summary>
-        public object Value { get; set; }
+        [DataMember]
+        public NodeResult[] Results { get; set; }
 
         /// <summary>
         /// 
@@ -52,18 +44,18 @@ namespace XMLReporting
 
 
             // 2) Fill all children
-            foreach (var item in Children.OfType<TreeNode2>())
+            foreach (var item in Children.OfType<TreeNode>())
             {
                 item.Fill(dataSource);
             }
         }
 
-        public override IEnumerable<string> GetUniqueGroups(params Group[] parentGroups)
+        public IEnumerable<string> GetUniqueGroups(params Group[] parentGroups)
         {
             throw new NotImplementedException();
         }
 
-        public override object this[Guid itemID, string key, params Group[] groups]
+        public object this[Guid itemID, string key, params Group[] groups]
         {
             get
             {
@@ -71,7 +63,7 @@ namespace XMLReporting
             }
         }
 
-        public override object this[string key, params Group[] groups]
+        public object this[string key, params Group[] groups]
         {
             get
             {

@@ -43,6 +43,7 @@
     <Compile Include="DataTableDataSource.cs" />
     <Compile Include="Group.cs" />
     <Compile Include="IDataSource.cs" />
+    <Compile Include="NodeResult.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TextReplacementInstance.cs" />
     <Compile Include="TextReplacement.cs" />
