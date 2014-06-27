@@ -32,6 +32,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="MediaForge3.Common.DataContracts">
+      <HintPath>D:\git\mf3\_bin\MediaForge3.Common.DataContracts.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
@@ -47,38 +50,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="TMS_Script_Autogenerate.tt">
-      <Generator>TextTemplatingFileGenerator</Generator>
-      <LastGenOutput>TMS_Script_Autogenerate.txt</LastGenOutput>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\XMLReporting\XMLReporting.csproj">
-      <Project>{d2d7db21-03fd-47b4-9cc5-0996efc465fd}</Project>
-      <Name>XMLReporting</Name>
-    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="TMS_Script_Autogenerate.txt">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>TMS_Script_Autogenerate.tt</DependentUpon>
-    </Content>
-    <Content Include="TMS_SQL\TMS_00003609-MFT-3609.sql" />
-    <Content Include="TMS_SQL\TMS_00003610-MFT-3610.sql" />
-    <Content Include="TMS_SQL\TMS_00003611-MFT-3611.sql" />
-    <Content Include="TMS_SQL\TMS_00003612-MFT-3612.sql" />
-    <Content Include="TMS_SQL\TMS_00003613-MFT-3613.sql" />
-    <Content Include="TMS_SQL\TMS_00003614-MFT-3614.sql" />
-    <Content Include="TMS_SQL\TMS_00003615-MFT-3615.sql" />
-    <Content Include="TMS_SQL\TMS_00003616-MFT-3616.sql" />
-    <Content Include="TMS_SQL\TMS_00003617-MFT-3617.sql" />
-    <Content Include="TMS_SQL\TMS_00003618-MFT-3618.sql" />
-    <Content Include="TMS_SQL\TMS_00003619-MFT-3619.sql" />
-    <Content Include="TMS_Template.tt.txt" />
+    <None Include="MediaForge3.Common.DataContracts.dlh" />
+    <Content Include="on_mov_programs-up_00000009.xml" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

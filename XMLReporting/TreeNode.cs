@@ -145,6 +145,8 @@ namespace XMLReporting
             return this;
         }
 
+        #region Consolidation functions
+
         public static object DefaultSummations(params NodeResult[] results)
         {
             var nonNullResults = results.Where(x => x.Value != null);
@@ -171,6 +173,8 @@ namespace XMLReporting
 
             return string.Format("({0} items)", strings.Length);
         }
+
+        #endregion
 
         #region Serialization/Deserialization
 

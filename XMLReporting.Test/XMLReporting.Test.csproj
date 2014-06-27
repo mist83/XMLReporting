@@ -54,17 +54,13 @@
   </Choose>
   <ItemGroup>
     <Content Include="Scripts.sql" />
-    <Compile Include="UnitTest1.cs" />
+    <Compile Include="TreeNodeTestClass.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ConsoleApplication1\ConsoleApplication1.csproj">
       <Project>{a2c5882e-1059-4d94-ad77-b227ae2cc226}</Project>
       <Name>ConsoleApplication1</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\XMLReporting\XMLReporting.csproj">
-      <Project>{d2d7db21-03fd-47b4-9cc5-0996efc465fd}</Project>
-      <Name>XMLReporting</Name>
     </ProjectReference>
   </ItemGroup>
   <Choose>
