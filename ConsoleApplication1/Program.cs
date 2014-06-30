@@ -21,6 +21,8 @@ namespace ConsoleApplication1
 
         static void Main(string[] args)
         {
+            int result = new AsyncExamples().MyTaskAsync().Result;
+
             var tableCreationStatements = GenerateSQL(typeof(programsProgram), 0, "programsProgram", "castTypeMemberName", "crewTypeMemberName").ToList();
             tableCreationStatements.Reverse();
             var dropStatements = tableCreationStatements.Where(x => !x.StartsWith("--")).Select(x => x.Substring(0, x.IndexOf(" (")).Trim().Replace("CREATE", "DROP")).ToList();
