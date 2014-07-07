@@ -1,13 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading;
 using MediaForge3.Common.DataContracts.TMS.Programs;
@@ -16,14 +13,62 @@ namespace ConsoleApplication1
 {
     class Program
     {
-        private static int indentAmount = 4;
-        private static string stagingTablePrefix = "_";
-
         static void Main(string[] args)
         {
+            using (var store = new SQLCEStore("Friends.sdf", "pw", true))
+            {
+                store.ExecuteSQL("CREATE TABLE Friends(Id uniqueidentifier not null, Name nvarchar(4000), FavoriteFood nvarchar(4000))");
+            }
+
+            for (int i = 0; i < 5; i++)
+            {
+                using (var store = new SQLCEStore("Friends.sdf", "pw"))
+                {
+                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Mike"), new KeyValuePair<string, object>("favoriteFood", "Sushi"));
+                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Joe"), new KeyValuePair<string, object>("favoriteFood", "Pizza"));
+                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Daniel"), new KeyValuePair<string, object>("favoriteFood", "Burgers"));
+                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "JR"), new KeyValuePair<string, object>("favoriteFood", "Pancakes"));
+                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Kevin"), new KeyValuePair<string, object>("favoriteFood", "Hod dogs"));
+                }
+            }
+
+            using (var store = new SQLCEStore("Friends.sdf", "pw"))
+            {
+                var table = store.GetDataTable("SELECT * FROM Friends ORDER BY Name");
+            }
+        }
+
+        public static SqlConnection GetConnection()
+        {
+            var connection = new SqlConnection(Database.ConnectionString);
+            connection.Open();
+
+            using (SqlCommand SetCmd = new SqlCommand("SELECT * FROM TMSProgramHistory", connection))
+            {
+                DataTable table = new DataTable();
+                SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM TMSProgramHistory", connection);
+                adapter.Fill(table);
+            }
+
+            return connection;
+        }
+
+        private static void Test_Database()
+        {
+            Database.ExecuteSQL("DELETE FROM Genre");
+            Database.ExecuteSQL("INSERT Genre SELECT @GenreId, @Language, @Genre, @UpdatedDate",
+                new KeyValuePair<string, object>("GenreId", "1"), // Int type in database gets automatically converted from string
+                new KeyValuePair<string, object>("Language", "language"),
+                new KeyValuePair<string, object>("Genre", "genre"),
+                new KeyValuePair<string, object>("updateddate", DateTime.Now));
+        }
+
+        private static void Test_Other(params string[] args)
+        {
+            Monads.Test();
             int result = new AsyncExamples().MyTaskAsync().Result;
 
-            var tableCreationStatements = GenerateSQL(typeof(programsProgram), 0, "programsProgram", "castTypeMemberName", "crewTypeMemberName").ToList();
+            var tableCreationStatements = SchemaGenerator.GenerateSQL(typeof(programsProgram), 0, "programsProgram", "castTypeMemberName", "crewTypeMemberName").ToList();
             tableCreationStatements.Reverse();
             var dropStatements = tableCreationStatements.Where(x => !x.StartsWith("--")).Select(x => x.Substring(0, x.IndexOf(" (")).Trim().Replace("CREATE", "DROP")).ToList();
 
@@ -55,7 +100,7 @@ namespace ConsoleApplication1
 
                 var item = loaded.programs[i];
 
-                var inserts = GenerateSQLInsertStatement(item, loaded.programs.First().TMSId, "castTypeMemberName", "crewTypeMemberName");
+                var inserts = SchemaGenerator.GenerateSQLInsertStatement(item, loaded.programs.First().TMSId, "castTypeMemberName", "crewTypeMemberName");
                 string insertSql = string.Join(Environment.NewLine, inserts) + Environment.NewLine;
 
                 using (SqlConnection connection = new SqlConnection(new SqlConnectionStringBuilder { DataSource = "dlabtwsql121", InitialCatalog = "TMS_Test", IntegratedSecurity = true }.ToString()))
@@ -72,8 +117,10 @@ namespace ConsoleApplication1
                     }
                 }
             }
+        }
 
-            //DrawRedditAlien(width: 60);
+        private static void Other2(params string[] args)
+        {
             var a = TimeSpan.FromSeconds(12345).ToString();
             var b = TimeSpan.FromSeconds(12390).ToString("hh\\:mm\\:ss");
 
@@ -83,202 +130,12 @@ namespace ConsoleApplication1
             byte[] bytes2 = new SHA1CryptoServiceProvider().ComputeHash("input2".Select(x => (byte)x).ToArray());
             string hex2 = string.Join(string.Empty, bytes2.Select(x => string.Format("{0:x2}", x)));
 
-            CountLines(args.First(), args.Skip(1).ToArray());
+            LineCounter.CountLines(args.First(), args.Skip(1).ToArray());
 
             Console.Write("Press any key to continue . . . ");
             Console.ReadKey();
         }
 
-        public static HashSet<string> GenerateSQL(Type type, int indentLevel, params string[] nonLinkedTableNames)
-        {
-            HashSet<string> sql = new HashSet<string>();
-            var properties = type.GetProperties().OrderBy(x => x.Name).Reverse();
-
-            var classProperties = properties.Where(x =>
-                x.PropertyType != typeof(string) &&
-                x.PropertyType != typeof(decimal) &&
-                x.PropertyType != typeof(DateTime) &&
-                x.PropertyType != typeof(bool) &&
-                x.PropertyType != typeof(float));
-
-            List<PropertyInfo> childLinkingProperties = new List<PropertyInfo>();
-            if (classProperties.Any())
-            {
-                foreach (var item in classProperties)
-                {
-                    // Add properties that will be picked up when the table is generated that links this record to the one below
-                    childLinkingProperties.AddRange(item.PropertyType.GetProperties().Where(x => x.Name.EndsWith("Id")));
-
-                    var subProperties = GenerateSQL(item.PropertyType.GenericTypeArguments.Any() ? item.PropertyType.GenericTypeArguments.Single() : item.PropertyType, indentLevel + 1, nonLinkedTableNames);
-                    foreach (var subTable in subProperties)
-                    {
-                        if (sql.Any(x => x.Trim() == subTable.Trim()))
-                            sql.Add("--" + subTable);
-                        else
-                            sql.Add(subTable);
-                    }
-                }
-            }
-
-            var simpleProperties = properties.Union(childLinkingProperties).Except(classProperties).Where(x => !x.PropertyType.GenericTypeArguments.Any());
-            if (simpleProperties.Any())
-            {
-                if (nonLinkedTableNames.Contains(type.Name))
-                {
-                    var sqlStatement = string.Format("{0}CREATE TABLE [dbo].[{1}{2}] ({3})", string.Empty.PadLeft(indentLevel * indentAmount, ' '), stagingTablePrefix, type.Name, string.Join(", ",
-                        simpleProperties
-                        .OrderBy(x => x.Name == "TMSId" ? 0 : 1)
-                        .ThenBy(x => x.Name.EndsWith("Id") ? 0 : 1)
-                        .ThenBy(x => x.Name)
-                        .Select(x => string.Format("[{0}] {1}", x.Name, ConvertTypeToSQLType(x.PropertyType)))));
-
-                    sql.Add(sqlStatement);
-                }
-                else
-                {
-                    string sqlStatement = string.Format("{0}CREATE TABLE [dbo].[{1}{2}] ([TMSId] varchar(max), {3})", string.Empty.PadLeft(indentLevel * indentAmount, ' '), stagingTablePrefix, type.Name, string.Join(", ",
-                        simpleProperties
-                        .OrderBy(x => x.Name.EndsWith("Id") ? 0 : 1)
-                        .Select(x => string.Format("[{0}] {1}", x.Name, ConvertTypeToSQLType(x.PropertyType)))));
-
-                    sql.Add(sqlStatement);
-                }
-            }
-
-            return sql;
-        }
-
-        static string ConvertTypeToSQLType(Type type)
-        {
-            if (type == typeof(int))
-                return "int";
-            else if (type == typeof(string))
-                return "nvarchar(max)";
-            else if (type == typeof(DateTime))
-                return "datetime";
-            else if (type == typeof(bool))
-                return "bit";
-            else if (type == typeof(Single))
-                return "float";
-            else if (type == typeof(Guid))
-                return "uniqueidentifier";
-            else
-                throw new NotImplementedException();
-        }
-
-        public static IEnumerable<string> GenerateSQLInsertStatement(object item, string tmsId, params string[] excludedTables)
-        {
-            List<string> statements = new List<string>();
-
-            if (item is string)
-                return statements;
-
-            var simplePropertyInfos = GetSimplePropertyInfos(item).ToList();
-            List<PropertyInfo> linkingProperties = new List<PropertyInfo>();
-            foreach (var classProperty in item.GetType().GetProperties().Except(simplePropertyInfos))
-            {
-                // Add properties that will be picked up when the table is generated that links this record to the one below
-                linkingProperties.AddRange(classProperty.PropertyType.GetProperties().Where(x => x.Name.EndsWith("Id")));
-
-                if (!classProperty.PropertyType.GenericTypeArguments.Any())
-                    statements.AddRange(GenerateSQLInsertStatement(classProperty.GetValue(item), tmsId, excludedTables));
-                else
-                {
-                    var enumerable = (IEnumerable)classProperty.GetValue(item);
-                    foreach (var listItem in enumerable)
-                    {
-                        statements.AddRange(GenerateSQLInsertStatement(listItem, tmsId, excludedTables));
-                    }
-                }
-            }
-
-            if (simplePropertyInfos.Any())
-            {
-                if (item.GetType().Name == "awardType")
-                {
-
-                }
-                if (!excludedTables.Contains(item.GetType().Name))
-                {
-                    if (linkingProperties.Any())
-                    {
-                        string sql = string.Format("INSERT {0}{1}(" + (item.GetType() == typeof(programsProgram) ? string.Empty : "[TMSId], ") + "{2}, {3}) VALUES({4} {5}, {6})",
-                            stagingTablePrefix,
-                            item.GetType().Name,
-                            string.Join(", ", linkingProperties.Select(x => string.Format("[{0}]", x.Name))),
-                            string.Join(", ", simplePropertyInfos.Select(x => string.Format("[{0}]", x.Name))),
-                            (item.GetType() == typeof(programsProgram) ? string.Empty : "'" + tmsId + "', "),
-                            string.Join(", ", Enumerable.Repeat("'unknown'", linkingProperties.Count)),
-                            GetSqlPropertyValues(item));
-                        statements.Add(sql);
-                    }
-                    else
-                    {
-                        string sql = string.Format("INSERT {0}{1}([TMSId], {2}) VALUES('{3}', {4})",
-                            stagingTablePrefix,
-                            item.GetType().Name,
-                            string.Join(", ", simplePropertyInfos.Select(x => string.Format("[{0}]", x.Name))),
-                            tmsId,
-                            GetSqlPropertyValues(item));
-                        statements.Add(sql);
-                    }
-                }
-                else
-                {
-                    string sql = string.Format("INSERT {0}{1}({2}) VALUES({3})", stagingTablePrefix, item.GetType().Name, string.Join(", ", simplePropertyInfos.Select(x => string.Format("[{0}]", x.Name))), GetSqlPropertyValues(item));
-                    statements.Add(sql);
-                }
-            }
-
-            return statements;
-        }
-
-        public static IEnumerable<PropertyInfo> GetSimplePropertyInfos(object item)
-        {
-            var simpleProperties = item.GetType().GetProperties()
-                .OrderBy(x => x.Name)
-                .Where(x =>
-                    x.PropertyType == typeof(int) ||
-                    x.PropertyType == typeof(decimal) ||
-                    x.PropertyType == typeof(string) ||
-                    x.PropertyType == typeof(DateTime) ||
-                    x.PropertyType == typeof(bool) ||
-                    x.PropertyType == typeof(Single) ||
-                    x.PropertyType == typeof(Guid) ||
-                    x.PropertyType == typeof(float));
-
-            return simpleProperties;
-        }
-
-        public static string GetSqlPropertyValues(object item)
-        {
-            return string.Join(", ", GetSimplePropertyInfos(item).Select(x => GetSQLPropertyValue(item, x)));
-        }
-
-        public static string GetSQLPropertyValue(object item, PropertyInfo info)
-        {
-            string sqlProperty = "NULL";
-
-            if (info.PropertyType == typeof(int))
-                sqlProperty = info.GetValue(item).ToString();
-            if (info.PropertyType == typeof(decimal))
-                sqlProperty = info.GetValue(item).ToString();
-            else if (info.PropertyType == typeof(string))
-                sqlProperty = string.Format("'{0}'", ((string)info.GetValue(item) ?? string.Empty).Replace("'", "''"));
-            else if (info.PropertyType == typeof(DateTime))
-                sqlProperty = string.Format("'{0}'", DateTime.Parse(info.GetValue(item).ToString()) < new DateTime(1753, 1, 1) ? new DateTime(1753, 1, 1) : DateTime.Parse(info.GetValue(item).ToString()));
-            else if (info.PropertyType == typeof(bool))
-                sqlProperty = (bool)info.GetValue(item) ? "1" : "0";
-            else if (info.PropertyType == typeof(Single))
-                sqlProperty = info.GetValue(item).ToString();
-            else if (info.PropertyType == typeof(Guid))
-                sqlProperty = string.Format("'{0}'", info.GetValue(item));
-
-            if (sqlProperty == "''")
-                sqlProperty = "NULL";
-
-            return sqlProperty;
-        }
 
         private static void TestAbort()
         {
@@ -312,186 +169,5 @@ namespace ConsoleApplication1
                 }
             }
         }
-
-        #region Draw the Reddit Alien
-
-        static void DrawRedditAlien(string textToUse = "REDDIT*", int? width = null)
-        {
-            Console.BackgroundColor = ConsoleColor.Black;
-            Console.ForegroundColor = ConsoleColor.White;
-
-            var bitmap = (Bitmap)GetImageFromUrl(@"http://upload.wikimedia.org/wikipedia/fr/f/fc/Reddit-alien.png");
-
-            var rectangle = GetAlphaBoundingRect(bitmap);
-            var bm = new Bitmap(rectangle.Width, rectangle.Height);
-
-            // Copy the bits from the old image to the new one
-            for (int y = 0; y < rectangle.Height; y++)
-            {
-                for (int x = 0; x < rectangle.Width; x++)
-                {
-                    var color = bitmap.GetPixel(x + rectangle.Left, y + rectangle.Top);
-                    bm.SetPixel(x, y, color);
-                }
-            }
-
-            bitmap = bm;
-
-            if (!width.HasValue)
-                width = Console.BufferWidth;
-
-            double resizeFactor = (double)width / (double)bitmap.Width;
-            Size newSize = new Size((int)((double)bitmap.Width * resizeFactor) - 1, (int)((double)bitmap.Width * resizeFactor * .8) - 1);
-            bitmap = new Bitmap(bitmap, newSize);
-
-            int characterIndex = 0;
-
-            var colors = new HashSet<Color>();
-            for (int y = 0; y < bitmap.Height; y++)
-            {
-                for (int x = 0; x < bitmap.Width; x++)
-                {
-                    var color = bitmap.GetPixel(x, y);
-                    ConsoleColor? overrideColor = null;
-
-                    // Eyes
-                    if (color.ToString() == "Color [A=255, R=255, G=86, B=0]")
-                        overrideColor = ConsoleColor.Red;
-
-                    // Outline
-                    if (color.A != 0 && color.R == 0 && color.G == 0 && color.B == 0)
-                        overrideColor = ConsoleColor.DarkGray;
-
-                    // Track colors
-                    if (color.A != 0 && (color.R != 0 || color.G != 0 || color.B != 0))
-                        colors.Add(color);
-
-                    // Show the color as white or one of the predefined colors
-                    if (overrideColor.HasValue || (color.R != 0 && color.G != 0 && color.B != 0))
-                    {
-                        ConsoleColor defaultColor = Console.ForegroundColor;
-
-                        if (overrideColor.HasValue)
-                            Console.ForegroundColor = overrideColor.Value;
-
-                        Console.Write(textToUse[characterIndex % textToUse.Length]);
-                        characterIndex++;
-                        Console.ForegroundColor = defaultColor;
-                    }
-                    else
-                        Console.Write(' ');
-                }
-                Console.WriteLine();
-            }
-        }
-
-        public static Image GetImageFromUrl(string url)
-        {
-            HttpWebRequest httpWebRequest = (HttpWebRequest)HttpWebRequest.Create(url);
-
-            using (HttpWebResponse httpWebReponse = (HttpWebResponse)httpWebRequest.GetResponse())
-            {
-                using (Stream stream = httpWebReponse.GetResponseStream())
-                {
-                    return Image.FromStream(stream);
-                }
-            }
-        }
-
-        private static Rectangle GetAlphaBoundingRect(Bitmap bitmap)
-        {
-            int left = int.MaxValue;
-            int top = int.MaxValue;
-            int width = int.MinValue;
-            int height = int.MinValue;
-
-            for (int y = 0; y < bitmap.Height; y++)
-            {
-                for (int x = 0; x < bitmap.Width; x++)
-                {
-                    var color = bitmap.GetPixel(x, y);
-                    if (color.A != 0)
-                    {
-                        if (x < left)
-                            left = x;
-
-                        if (y < top)
-                            top = y;
-
-                        if (x > width)
-                            width = x;
-
-                        if (y > height)
-                            height = y;
-                    }
-                }
-            }
-
-            return new Rectangle(left, top, width - left, height - top);
-        }
-
-        #endregion
-
-        #region count lines
-
-        static void CountLines(string directory, params string[] fileTypes)
-        {
-            var initialColor = Console.ForegroundColor;
-
-            var total = 0;
-            var totalFiles = 0;
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.Write("Code line count for: ");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(directory);
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("--------------------------------------------------");
-            foreach (var item in fileTypes)
-            {
-                var files = Directory.GetFiles(directory, "*." + item, SearchOption.AllDirectories);
-                totalFiles += files.Length;
-
-                var codeLines = files.Sum(x => File.ReadAllLines(x).Length);
-                total += codeLines;
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("|");
-
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write("*.{0}", item.ToString().PadRight(10));
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write(string.Format("{0,4} file(s)", files.Length).PadRight(12));
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.Write("{0,16:n0} line(s)", codeLines);
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("|");
-            }
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("--------------------------------------------------");
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.Write("|");
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write("{0}", "total".PadRight(12));
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(string.Format("{0,4} file(s)", totalFiles).PadRight(12));
-
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("{0,16:n0} line(s)", total);
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("|");
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("--------------------------------------------------");
-
-            Console.ForegroundColor = initialColor;
-        }
-
-        #endregion
     }
 }
