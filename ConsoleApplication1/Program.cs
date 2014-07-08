@@ -1,28 +1,78 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
+using Engine;
 using MediaForge3.Common.DataContracts.TMS.Programs;
 
 namespace ConsoleApplication1
 {
-    class Program
+    public class Program
     {
+        private static ManualResetEventSlim slim = new ManualResetEventSlim(false);
+
+        private static int upperBound = 20;
+        private static int completed = 0;
+
         static void Main(string[] args)
         {
+            //EventLogTraceListener e = new EventLogTraceListener()
+            //DelimitedListTraceListener d= new DelimitedListTraceListener("") ;
+            //d.TraceOutputOptions = TraceOptions.ThreadId
+            //TraceSource ts = new TraceSource()
+
+            Stopwatch sw2 = Stopwatch.StartNew();
+            for (int i = 1; i <= upperBound; i++)
+            {
+                int j = i;
+
+                //Task.Run(() =>
+                //    {
+                //        Thread t = new Thread(() =>
+                //            {
+                using (var engine = new ReportingEngine())
+                {
+                    string outputFile = string.Format(@"C:\Users\mullman\Desktop\Output\XML2PDF {0:00}.pdf", j);
+
+                    List<string> inputs = new List<string>();
+                    inputs.Add(@"C:\Users\mullman\Documents\Visual Studio 2013\Projects\ConsoleApplication1\XML Page 1.html");
+                    inputs.Add(@"C:\Users\mullman\Documents\Visual Studio 2013\Projects\ConsoleApplication1\XML Page 2.html");
+
+                    engine.RenderXMLAsPDF(outputFile, inputs.ToArray());
+                }
+
+                Console.WriteLine("Completed " + j);
+
+                Interlocked.Increment(ref completed);
+                if (completed == upperBound)
+                {
+                    slim.Set();
+                }
+                //        });
+                //    t.Start();
+                //});
+            }
+
+            slim.Wait();
+            sw2.Stop();
+
+            Stopwatch sw = Stopwatch.StartNew();
             using (var store = new SQLCEStore("Friends.sdf", "pw", true))
             {
                 store.ExecuteSQL("CREATE TABLE Friends(Id uniqueidentifier not null, Name nvarchar(4000), FavoriteFood nvarchar(4000))");
+                Debug.WriteLine("Creating database/table: {0}", sw.Elapsed);
             }
 
-            for (int i = 0; i < 5; i++)
+            sw.Reset();
+            sw.Start();
+            using (var store = new SQLCEStore("Friends.sdf", "pw"))
             {
-                using (var store = new SQLCEStore("Friends.sdf", "pw"))
+                for (int i = 0; i < 25; i++)
                 {
                     store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Mike"), new KeyValuePair<string, object>("favoriteFood", "Sushi"));
                     store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Joe"), new KeyValuePair<string, object>("favoriteFood", "Pizza"));
@@ -31,26 +81,27 @@ namespace ConsoleApplication1
                     store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Kevin"), new KeyValuePair<string, object>("favoriteFood", "Hod dogs"));
                 }
             }
+            Debug.WriteLine("Inserting records: {0}", sw.Elapsed);
 
+            sw.Reset();
+            sw.Start();
             using (var store = new SQLCEStore("Friends.sdf", "pw"))
             {
                 var table = store.GetDataTable("SELECT * FROM Friends ORDER BY Name");
+                Debug.WriteLine("Selecting from table: {0}", sw.Elapsed);
             }
         }
 
-        public static SqlConnection GetConnection()
+        private static void TraceMe()
         {
-            var connection = new SqlConnection(Database.ConnectionString);
-            connection.Open();
+            // First step: create the trace source object
+            TraceSource ts = new TraceSource("myTraceSource");
 
-            using (SqlCommand SetCmd = new SqlCommand("SELECT * FROM TMSProgramHistory", connection))
-            {
-                DataTable table = new DataTable();
-                SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM TMSProgramHistory", connection);
-                adapter.Fill(table);
-            }
-
-            return connection;
+            // Writing out some events
+            ts.TraceEvent(TraceEventType.Warning, 0, "warning message", "a", "b", "c", 1, 2, 3);
+            ts.TraceEvent(TraceEventType.Error, 0, "error message");
+            //ts.TraceEvent(TraceEventType.Information, 0, "information message");
+            //ts.TraceEvent(TraceEventType.Critical, 0, "critical message");
         }
 
         private static void Test_Database()
@@ -93,6 +144,7 @@ namespace ConsoleApplication1
             //string allSql = sql + Environment.NewLine + insertSql + Environment.NewLine;
 
             DateTime startTime = DateTime.Now;
+
             for (int i = 0; i < loaded.programs.Count; i++)
             {
                 if (i % 25 == 0)

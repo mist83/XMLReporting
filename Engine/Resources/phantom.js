@@ -1,59 +1,45 @@
-﻿var page = require('webpage').create(), fs = require('fs');
+﻿// Nudge in right direction: http://stefaanlippens.net/spider-javascript-manipulated-html-with-phantomjs
 
-page.viewportSize = { width: 1000, height: 900 };
-if (phantom.args.length === 0) {
-    console.log('Usage: phantom.js <URL to render>  <FILE path for where to save the output to> <width> <height> <margin>');
-    phantom.exit();
-} else {
-    var address = phantom.args[0];
-    var fileName = phantom.args[1];
-    var width = phantom.args[2];
-    var height = phantom.args[3];
-    //var margin = phantom.args[4];
-    if (width || height) {
-        page.viewportSize = { width: width, height: height };
-    }
-    page.onError = function (msg, trace) {
-        console.error("Error: " + msg);
-        trace.forEach(function (item) {
-            console.log('  ', item.file, ':', item.line);
-        });
-    };
+var fileSystem = require('fs');
 
-    page.onConsoleMessage = function (msg, lineNum, sourceId) {
-        console.log('CONSOLE: ' + msg + ' (from line #' + lineNum + ' in "' + sourceId + '")');
-    };
+// Without specifically telling PhantomJS this is a file, all "<" and ">" will be encoded
+var sourceFile = "file:///" + phantom.args[0];
+var destinationFile = phantom.args[1];
 
-    page.open(address, function (status) {
-        if (status !== 'success') {
-            console.log('Unable to access HTML Page');
-        }
-        else {
+var page = require('webpage').create();
+page.open(sourceFile, function (status) {
+	if (status === 'success') {
+		// Process JavaScript (if any) in the page
+		var processedHTML = page.evaluate(function () {
 
-            var markup = page.evaluate(function (margin) {
-                //document.body.style.margin = margin;
-                //console.log(margin);
-                //$('body').css({ 'margin': margin });
-                var html = document.getElementsByTagName('html')[0];
+			// Get the root node
+			var html = document.getElementsByTagName('html')[0];
 
-                // Remove all scripts
-                var scripts = html.getElementsByTagName('script');
-                console.log(scripts);
-                while (scripts.length > 0) {
-                    scripts[0].parentNode.removeChild(scripts[0]);
-                }
+			// Cycle through all non-terminating tags (ones that will not conform
+			// to XML - i.e. a <br /> tag is valid XHTML but not valid HTML (<br>)
+			var nonTerminatingTags = html.getElementsByTagName('br');
+			while (nonTerminatingTags.length > 0) {
+				var newNode = document.createElement('div');
+				newNode.setAttribute('data-original-type', 'br');
+				nonTerminatingTags[0].parentNode.replaceChild(newNode, nonTerminatingTags[0]);
+			}
 
-                //html.innerHTML = '<div>wtf</div>';
+			// Remove all scripts
+			var scripts = html.getElementsByTagName('script');
+			while (scripts.length > 0) {
+				scripts[0].parentNode.removeChild(scripts[0]);
+			}
 
-                //document.body.style.margin = "";
-                //$('body').css({ 'margin': "" });
-                console.log(document.documentElement.outerHTML);
-                return html.innerHTML;
-            });//, margin);
+			return document.documentElement.outerHTML;
+		});
 
-            fs.write(fileName, markup, 'w');
-            // console.log( markup); 
-            phantom.exit();
-        }
-    });
-}
+		// Write the HTML to the specified file
+		fileSystem.write(destinationFile, processedHTML, 'w');
+	}
+	else {
+		fileSystem.write(destinationFile, 'Could not open source file: ' + sourceFile, 'w');
+	}
+
+	// Stop PhantomJS
+	phantom.exit();
+});

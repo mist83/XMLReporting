@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "ConsoleApplication1\ConsoleApplication1.csproj", "{A2C5882E-1059-4D94-AD77-B227AE2CC226}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XMLReporting", "XMLReporting\XMLReporting.csproj", "{D2D7DB21-03FD-47B4-9CC5-0996EFC465FD}"
@@ -10,8 +12,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Other", "Other", "{6DD26F1A-FCC4-4B89-9207-40E890EA3C69}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine", "Engine\Engine.csproj", "{9C348F95-335A-45A8-B3B2-5E61695509E3}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReportingConsole", "ReportingConsole\ReportingConsole.csproj", "{5493F71C-F578-48C0-8623-8FBCF48342CF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,18 +35,13 @@ Global
 		{9C348F95-335A-45A8-B3B2-5E61695509E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9C348F95-335A-45A8-B3B2-5E61695509E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9C348F95-335A-45A8-B3B2-5E61695509E3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5493F71C-F578-48C0-8623-8FBCF48342CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5493F71C-F578-48C0-8623-8FBCF48342CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5493F71C-F578-48C0-8623-8FBCF48342CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5493F71C-F578-48C0-8623-8FBCF48342CF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{09D583FB-017C-41AC-93AF-434D61075FBC} = {6DD26F1A-FCC4-4B89-9207-40E890EA3C69}
 		{D2D7DB21-03FD-47B4-9CC5-0996EFC465FD} = {6DD26F1A-FCC4-4B89-9207-40E890EA3C69}
+		{09D583FB-017C-41AC-93AF-434D61075FBC} = {6DD26F1A-FCC4-4B89-9207-40E890EA3C69}
 		{9C348F95-335A-45A8-B3B2-5E61695509E3} = {6DD26F1A-FCC4-4B89-9207-40E890EA3C69}
-		{5493F71C-F578-48C0-8623-8FBCF48342CF} = {6DD26F1A-FCC4-4B89-9207-40E890EA3C69}
 	EndGlobalSection
 EndGlobal

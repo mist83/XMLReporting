@@ -40,16 +40,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CONSTANTS.cs" />
     <Compile Include="PageSize.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Utility.cs" />
+    <Compile Include="ReportingEngine.cs" />
+    <Compile Include="Utility1.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\phantomjs.exe.resource" />
+    <EmbeddedResource Include="Resources\phantomjs.exe.resource" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\Prince.zip.resource" />
+    <EmbeddedResource Include="Resources\Prince.zip.resource" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\phantom.js" />

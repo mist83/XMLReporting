@@ -53,6 +53,7 @@
     <Compile Include="Database.cs" />
     <Compile Include="LineCounter.cs" />
     <Compile Include="Monads.cs" />
+    <Compile Include="MyTraceListener.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SchemaGenerator.cs" />
@@ -67,6 +68,12 @@
   <ItemGroup>
     <None Include="MediaForge3.Common.DataContracts.dlh" />
     <Content Include="on_mov_programs-up_00000009.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Engine\Engine.csproj">
+      <Project>{9c348f95-335a-45a8-b3b2-5e61695509e3}</Project>
+      <Name>Engine</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
