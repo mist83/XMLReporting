@@ -61,6 +61,10 @@ namespace ConsoleApplication1
             slim.Wait();
             sw2.Stop();
 
+        }
+
+        private static void UseSQLCE()
+        {
             Stopwatch sw = Stopwatch.StartNew();
             using (var store = new SQLCEStore("Friends.sdf", "pw", true))
             {

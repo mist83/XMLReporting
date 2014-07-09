@@ -13,6 +13,10 @@ namespace XMLReporting
     [DataContract]
     public partial class TreeNode : IDataSource
     {
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <returns></returns>
         public static TreeNode CreateRoot()
         {
             return new TreeNode { Results = new NodeResult[] { } };
@@ -49,7 +53,7 @@ namespace XMLReporting
             if (child.Parent != null)
                 throw new Exception("Node already has parent.");
 
-            var tree = CurrentTree;
+            var tree = Flatten();
             if (tree.Contains(child))
                 throw new Exception("Parent tree already contains this node.");
 
@@ -62,26 +66,23 @@ namespace XMLReporting
             return child; // Allow method chaining
         }
 
-        private HashSet<TreeNode> CurrentTree
+        private HashSet<TreeNode> Flatten()
         {
-            get
+            HashSet<TreeNode> tree = new HashSet<TreeNode>();
+
+            TreeNode current = this;
+            while (current.Parent != null)
+                current = current.Parent;
+
+            tree.Add(current);
+
+            var allChildren = GetAllChildren(current);
+            foreach (var item in allChildren)
             {
-                HashSet<TreeNode> tree = new HashSet<TreeNode>();
-
-                TreeNode current = this;
-                while (current.Parent != null)
-                    current = current.Parent;
-
-                tree.Add(current);
-
-                var allChildren = GetAllChildren(current);
-                foreach (var item in allChildren)
-                {
-                    tree.Add(item);
-                }
-
-                return tree;
+                tree.Add(item);
             }
+
+            return tree;
         }
 
         private List<TreeNode> GetAllChildren(TreeNode current)
@@ -145,7 +146,7 @@ namespace XMLReporting
             return this;
         }
 
-        #region Consolidation functions
+        #region Consolidation
 
         public static object DefaultSummations(params NodeResult[] results)
         {

@@ -54,6 +54,7 @@
   </Choose>
   <ItemGroup>
     <Content Include="Scripts.sql" />
+    <Compile Include="TextReplacementTestClass.cs" />
     <Compile Include="TreeNodeTestClass.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
