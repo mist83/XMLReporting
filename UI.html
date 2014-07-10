@@ -14,72 +14,206 @@
   .selectable li { margin: 3px; padding: 0.4em; font-size: 1.4em; height: 18px; }
   </style>
   <script>
-  //$(function() {
-  //  $( ".selectable" ).selectable();
-  //});
-  $(function() {
-    $( ".selectable" ).draggable();
-  });
+	var pageWidth = 792 + 2;
+	var pageHeight = 120 + 2;
+	var pagePadding = '4px 4px 4px 4px';
+  
   $(document).ready(function(){
-	var pageHeight = $('#myDiv').height();
-	var tableHeight = pageHeight + 1;
-	
-	var removedRows = [];
-	while(tableHeight > pageHeight) {
-		var lastRow = $("#mytable tr:last");
-		removedRows.push(lastRow);
-		lastRow.remove();
-		tableHeight = $('#mytable').height();
+	function createPageDiv() {
+		var pageDiv = document.createElement('div');
+		applyDivStyle(pageDiv);
+		return pageDiv;
 	}
 	
-	var newTable = document.createElement("div" )
+	function applyDivStyle(div) {
+		$(div).css('margin', '4px');
+		$(div).css('padding', pagePadding);
+		$(div).css('border', '1px solid black');
+		$(div).css('width', pageWidth + 'px');
+		$(div).css('height', pageHeight + 'px');
+	}
 	
-	alert('page height: ' + pageHeight + ', table height: ' + tableHeight);
+	function paginate(currentDiv, pageCreator) {
+		var pageHeight = currentDiv.height();
+		
+		var currentTable = $(currentDiv).find('table');
+		var tableHeight = currentTable.height() - 2;
+		
+		var newDiv = null;
+		if(tableHeight <= pageHeight) {
+			return;
+		}
+		
+		console.log('removing rows');
+		var removedRows = [];
+		while(tableHeight > pageHeight) {
+			var lastRow = $(currentTable).find('tr:last');
+			console.log($(lastRow).text());
+			removedRows.unshift(lastRow);
+			lastRow.remove();
+			tableHeight = $(currentTable).height() - 2;
+		}
+		
+		newDiv = $(currentDiv).after(pageCreator()).next();
+
+		var html = $("<table />").append($(currentTable).clone()).html();
+		
+		$(newDiv).html(html);
+		var newTable = $(newDiv).find('table');
+		$(newTable).removeAttr('id');
+		
+		$(newTable).find('tbody tr').each(function() {
+			this.parentNode.removeChild(this); 
+		});
+
+		console.log('adding rows');
+		$(removedRows).each(function() {
+			console.log($(this).text());
+			$(newTable).append($(this));
+		});
+		
+		var x = true;
+		if(x && newDiv !== null)
+			paginate(newDiv, pageCreator);
+	}
+	
+	for(var i = 2; i <= 15; i++) {
+		$('tr:last').after('<tr><td>A' + i + '</td><td>B' + i + '</td><td>C' + i + '</td></tr>');
+	}
+	
+	applyDivStyle($('div'));
+	
+	paginate($('div'), createPageDiv);
+	
+	$(function() {
+		$('.selectable').draggable();
+	});
+
+	var currentPopup = null;
+	var mouseIn = false;
+
+	$('th').mouseenter(function() {
+		console.log('mouseenter th');
+		mouseIn = true;
+		if(currentPopup === null) {
+			createTHPopup($(this));
+		}
+	});
+
+	$('th').mouseleave(function() {
+		console.log('mouseleave th');
+		mouseIn = false;
+		hidePopup($('.pop-up').eq(0));
+	});
+
+	function createTHPopup(th) {
+		if(currentPopup !== null)
+			currentPopup.remove();
+		
+		var popupWidth = 20;
+		var body = $('body');
+		//body.append('<div class="pop-up" style="display: none;"></div>');
+		body.append('<div class="pop-up"></div>');
+		currentPopup = $('.pop-up');
+		currentPopup.css('background', 'ivory');
+		currentPopup.css('border-radius', '0px 0px 2px 2px');
+		currentPopup.css('padding', '2px');
+		currentPopup.css('text-align', 'left');
+		currentPopup.css('border', 'solid 1px steelblue');
+		//currentPopup.append('<a href="dd"><span style="font-size: 8px; text-align: center;">Edit</span></a>');
+		currentPopup.append('<img width="16" height="16" src="C:\\Users\\mullman\\Desktop\\Settings.png" />');
+		
+		currentPopup.find('img').click(function() {
+			var currentWidth = currentPopup.css('width');
+			if(currentWidth === '200px')
+				return;
+				
+			currentPopup.css('width', '200');
+			currentPopup.css('height', '200');
+			
+			currentPopup.append('<img width="16" height="16" style="float: right;" src="C:\\Users\\mullman\\Desktop\\SCV.png" />');
+			
+			currentPopup.append('<strong>' + $(th).text() + '</strong>');
+			//currentPopup.append('<input value=' + $(th).text() + '></input></strong>');
+			currentPopup.append('<hr>');
+			currentPopup.append('<button id="insertcolumn" style="width: 160px;">Insert column before</button>');
+			currentPopup.append('<br>');
+			currentPopup.append('<button style="width: 160px;">Add column after</button>');
+			currentPopup.append('<br>');
+			currentPopup.append('<button style="width: 160px;">Delete column</button>');
+			currentPopup.append('<br>');
+
+			$('#insertcolumn').eq(0).click(function() {
+				$('colgroup').append('<col width="50" />');
+				$('thead').append('<th>New Column</th>');
+			});
+			
+			return false;
+		});
+		
+		// .position() uses position relative to the offset parent, 
+		// so it supports position: relative parent elements
+		var pos = th.position();
+
+		// .outerWidth() takes into account border and padding.
+		var width = th.outerWidth();
+		//var height = $(this).outerHeight();
+
+		var popup = $(body).find('.pop-up');
+		popup.css({
+			position: 'absolute',
+			top: (pos.top) + 'px',
+			left: (pos.left + width) + 'px'
+		});
+
+		$(popup).mouseenter(function() {
+			mouseIn = true;
+			console.log('mouse in popup');
+		});
+		$(popup).mouseleave(function() {
+			mouseIn = false;
+			hidePopup(popup);
+			console.log('mouse left popup');
+		});
+		
+		//$(popup).fadeIn(300)
+	}
+	
+	function hidePopup(popup) {
+		setTimeout(function() {
+			console.log('hidePopup: mouse in=' +  mouseIn);
+			if(mouseIn)
+				return;
+			$(popup).fadeOut(750, function() {
+				$(popup).remove();
+				currentPopup = null;
+			})
+		}, 500);
+	}
   });
   </script>
 </head>
 <body>
-
-<div id="myDiv" style="border: 1px solid black; width: 792px; height:100;">
-	<table id="mytable" style="border-collapse: collapse; border: 1px solid black;">
-		<colgroup>
-			<col width="80" />
-			<col width="5" />
-			<col width="20" />
-		</colgroup>
-		<thead style="background: lightgray;">
-			<th class="selectable"><span>A1 <img width="16px" height="16px" style="vertical-align: center;" src="C:\Users\mullman\Desktop\SCV.png" /></span></th>
-			<th>B1</th>
-			<th>C1</th>
-		</thead>
-		<body>
-			<tr style="background: ivory;">
-				<td>A1</td>
-				<td>B1</td>
-				<td>C1</td>
-			</tr>
-			<tr style="background: white;">
-				<td>A2</td>
-				<td>B2</td>
-				<td>C2</td>
-			</tr>
-			<tr style="background: ivory;">
-				<td>A3</td>
-				<td>B3</td>
-				<td>C3</td>
-			</tr>
-			<tr style="background: white;">
-				<td>A4</td>
-				<td>B4</td>
-				<td>C4</td>
-			</tr>
-			<tr style="background: ivory;">
-				<td>A3</td>
-				<td>B3</td>
-				<td>C3</td>
-			</tr>
-		</body>
-	</table>
-</div>
+	<div class="selectable_">
+		<table style="border-collapse: collapse; border: 1px solid black;">
+			<colgroup>
+				<col width="80" />
+				<col width="80" />
+				<col width="80" />
+			</colgroup>
+			<thead style="background: lightgray;">
+				<th class="selectabdle">A1</th>
+				<th>B1</th>
+				<th>C1</th>
+			</thead>
+			<body>
+				<tr style="background: white;">
+					<td>A1</td>
+					<td>B1</td>
+					<td>C1</td>
+				</tr>
+			</body>
+		</table>
+	</div>
 </body>
 </html>
