@@ -14,51 +14,74 @@
   .selectable li { margin: 3px; padding: 0.4em; font-size: 1.4em; height: 18px; }
   </style>
   <script>
-	var pageWidth = 792 + 2;
-	var pageHeight = 120 + 2;
-	var pagePadding = '4px 4px 4px 4px';
+
+  var groupCount = 3;
   
   $(document).ready(function(){
 	function createPageDiv() {
 		var pageDiv = document.createElement('div');
-		applyDivStyle(pageDiv);
+		$(pageDiv).addClass('page');
+		
+		var headerDiv  = document.createElement('div');
+		$(headerDiv).addClass('pageheader');
+		$(pageDiv).append(headerDiv);
+
+		for(var i = 0; i < groupCount; i++) {
+			var groupDiv  = document.createElement('div');
+			$(groupDiv).addClass('groupheader' + (i + 1));
+			$(pageDiv).append(groupDiv);
+		}
+		
+		var contentDiv = document.createElement('div');
+		$(contentDiv).addClass('pagecontent');
+		$(contentDiv).css('height', (492 - groupCount * 20) + 'px');
+		$(contentDiv).css('top', (80 + groupCount * 20) + 'px');
+		$(pageDiv).append(contentDiv);
+
+		for(var i = groupCount; i > 0; i--) {
+			var groupDiv  = document.createElement('div');
+			$(groupDiv).addClass('groupfooter' + i);
+			$(pageDiv).append(groupDiv);
+		}
+		
+		var footerDiv = document.createElement('div');
+		$(footerDiv).addClass('pagefooter');
+		$(pageDiv).append(footerDiv);
+		
 		return pageDiv;
 	}
-	
-	function applyDivStyle(div) {
-		$(div).css('margin', '4px');
-		$(div).css('padding', pagePadding);
-		$(div).css('border', '1px solid black');
-		$(div).css('width', pageWidth + 'px');
-		$(div).css('height', pageHeight + 'px');
-	}
-	
+
 	function paginate(currentDiv, pageCreator) {
-		var pageHeight = currentDiv.height();
+		var contentAreaHeight = currentDiv.height();
 		
 		var currentTable = $(currentDiv).find('table');
 		var tableHeight = currentTable.height() - 2;
 		
-		var newDiv = null;
-		if(tableHeight <= pageHeight) {
+		//var newDiv = null;
+		if(tableHeight <= contentAreaHeight) {
 			return;
 		}
 		
 		console.log('removing rows');
 		var removedRows = [];
-		while(tableHeight > pageHeight) {
+		while(tableHeight > contentAreaHeight) {
 			var lastRow = $(currentTable).find('tr:last');
 			console.log($(lastRow).text());
 			removedRows.unshift(lastRow);
 			lastRow.remove();
-			tableHeight = $(currentTable).height() - 2;
+			var mt = parseInt($(currentTable).css('margin-top'));
+			var mb = parseInt($(currentTable).css('margin-bottom'));
+			tableHeight = $(currentTable).height() + mt + mb + 3 * groupCount;
 		}
 		
-		newDiv = $(currentDiv).after(pageCreator()).next();
+		var newDiv = pageCreator();
+		$('body').eq(0).after(newDiv);
+		$(currentDiv).parents('.page').eq(0).after(newDiv);
 
 		var html = $("<table />").append($(currentTable).clone()).html();
 		
-		$(newDiv).html(html);
+		var contentDiv = $(newDiv).find('.pagecontent').eq(0);
+		$(contentDiv).html(html);
 		var newTable = $(newDiv).find('table');
 		$(newTable).removeAttr('id');
 		
@@ -73,17 +96,26 @@
 		});
 		
 		var x = true;
-		if(x && newDiv !== null)
-			paginate(newDiv, pageCreator);
+		if(x && newDiv !== null) {
+			var toPaginate = $(newDiv).find('.pagecontent').eq(0);
+			paginate(toPaginate, pageCreator);
+		}
 	}
 	
-	for(var i = 2; i <= 15; i++) {
+	for(var i = 2; i <= 55; i++) {
 		$('tr:last').after('<tr><td>A' + i + '</td><td>B' + i + '</td><td>C' + i + '</td></tr>');
 	}
 	
-	applyDivStyle($('div'));
+	var mainTable = $('table').eq(0);
+	mainTable.remove();
 	
-	paginate($('div'), createPageDiv);
+	$('div').remove();
+	
+	var pageDiv = createPageDiv();
+	$(pageDiv).find('.pagecontent').eq(0).append(mainTable);
+	$('body').eq(0).append(pageDiv);
+	
+	paginate($('.pagecontent').eq(0), createPageDiv);
 	
 	$(function() {
 		$('.selectable').draggable();
@@ -92,30 +124,79 @@
 	var currentPopup = null;
 	var mouseIn = false;
 
-	$('th').mouseenter(function() {
+	function th_mouseenter() {
 		console.log('mouseenter th');
 		mouseIn = true;
 		if(currentPopup === null) {
 			createTHPopup($(this));
 		}
-	});
-
+	};
+	
+	$('th').mouseenter(th_mouseenter);
 	$('th').mouseleave(function() {
 		console.log('mouseleave th');
 		mouseIn = false;
 		hidePopup($('.pop-up').eq(0));
 	});
 
+	var currentTH = null;
+	
+	function insertColumn(th) {
+		var index = th.index();
+
+		var currentCol = $(th).parents('table').find('colgroup').find('col').eq(index);
+		var newCol = document.createElement('col');
+		$(currentCol).before(newCol);
+
+		var newTH = document.createElement('th');
+		$(newTH).text("New |");
+		$(newTH).mouseenter(th_mouseenter);
+		$(th).before(newTH);
+
+		$(th).parents('table').find('tbody').eq(0).find('tr').each(function() {
+			$(this).find('td').eq(index).before('<td>New |</td>');
+		});
+	}
+	
+	function deleteColumn(th) {
+		var index = th.index();
+		console.log('column index: ' + index);
+		
+		// Remove the cells from each row
+		$(th).parents('table').find('tbody').eq(0).find('tr').each(function() {
+			$(this).find('td').eq(index).remove();
+		});
+
+		// Remove the col
+		$(th).parents('table').find('colgroup').each(function() {
+			$(this).find('col').eq(index).remove();
+		});
+
+		// Remove the th
+		$(th).remove();
+	}
+	
+	function AlignTD(th, textAlign) {
+		var index = th.index();
+		
+		// Remove the cells from each row
+		$(th).parents('table').find('tbody').eq(0).find('tr').each(function() {
+			$(this).find('td').eq(index).css('text-align', textAlign);
+		});
+	}
+
 	function createTHPopup(th) {
 		if(currentPopup !== null)
 			currentPopup.remove();
+		
+		currentTH = th;
 		
 		var popupWidth = 20;
 		var body = $('body');
 		//body.append('<div class="pop-up" style="display: none;"></div>');
 		body.append('<div class="pop-up"></div>');
 		currentPopup = $('.pop-up');
-		currentPopup.css('background', 'ivory');
+		currentPopup.css('background', 'aliceblue');
 		currentPopup.css('border-radius', '0px 0px 2px 2px');
 		currentPopup.css('padding', '2px');
 		currentPopup.css('text-align', 'left');
@@ -138,15 +219,32 @@
 			currentPopup.append('<hr>');
 			currentPopup.append('<button id="insertcolumn" style="width: 160px;">Insert column before</button>');
 			currentPopup.append('<br>');
-			currentPopup.append('<button style="width: 160px;">Add column after</button>');
+			currentPopup.append('<button id="addcolumn" style="width: 160px;">Add column after</button>');
 			currentPopup.append('<br>');
-			currentPopup.append('<button style="width: 160px;">Delete column</button>');
+			currentPopup.append('<button id="deletecolumn" style="width: 160px;">Delete column</button>');
 			currentPopup.append('<br>');
+			currentPopup.append('<hr>');
+			currentPopup.append('<strong>Alignment</strong>');
+			currentPopup.append('<br>');
+			currentPopup.append('<button id="alignLeft">Left</button>');
+			currentPopup.append('<button id="alignCenter">Center</button>');
+			currentPopup.append('<button id="alignRight">Right</button>');
 
-			$('#insertcolumn').eq(0).click(function() {
+			$('#insertcolumn').eq(0).click(function() { insertColumn(currentTH); });
+
+			$('#addcolumn').eq(0).click(function() {
 				$('colgroup').append('<col width="50" />');
-				$('thead').append('<th>New Column</th>');
+				var th = document.createElement('th');
+				$(th).text("New Column");
+				$(th).mouseenter(th_mouseenter);
+				$(currentTH).after(th);
 			});
+
+			$('#deletecolumn').eq(0).click(function() { deleteColumn(currentTH); });
+			
+			$('#alignLeft').eq(0).click(function() { AlignTD(currentTH, 'left'); });
+			$('#alignCenter').eq(0).click(function() { AlignTD(currentTH, 'center'); });
+			$('#alignRight').eq(0).click(function() { AlignTD(currentTH, 'right'); });
 			
 			return false;
 		});
@@ -179,41 +277,141 @@
 		//$(popup).fadeIn(300)
 	}
 	
-	function hidePopup(popup) {
-		setTimeout(function() {
-			console.log('hidePopup: mouse in=' +  mouseIn);
-			if(mouseIn)
-				return;
-			$(popup).fadeOut(750, function() {
-				$(popup).remove();
-				currentPopup = null;
-			})
-		}, 500);
+		function hidePopup(popup) {
+			setTimeout(function() {
+				console.log('hidePopup: mouse in=' +  mouseIn);
+				if(mouseIn)
+					return;
+				$(popup).fadeOut(750, function() {
+					$(popup).remove();
+					currentPopup = null;
+				})
+			}, 500);
+		}
+		
+		$(function() {
+			$( "tabdle" ).resizable();
+		});	
+	});
+
+		</script>
+  <style type="text/css">
+	.page {
+		height: 612px;
+		width: 792px;
+		background: white;
+		border: 1px solid black;
+		margin: 10px;
+		position: relative;
 	}
-  });
-  </script>
+
+	.pageheader {
+		width: 100%;
+		background: ivory;
+		height: 80px;
+		position: absolute;
+		top: 0;
+		border-bottom: 1px solid steelblue;
+	}
+
+	.groupheader1 {
+		width: 100%;
+		height: 20px;
+		background: #aaaaaa;
+		top: 80px;
+		position: relative;
+	}
+	
+	.groupheader2 {
+		width: 100%;
+		height: 20px;
+		background: #bbbbbb;
+		top: 80px;
+		position: relative;
+	}
+	
+	.groupheader3 {
+		width: 100%;
+		height: 20px;
+		background: #cccccc;
+		top: 80px;
+		position: relative;
+	}
+	
+	.pagecontent {
+		height: 492px;
+		background: white;
+		position: relative;
+		top: 80px;
+	}
+	
+	.pagefooter {
+		width: 100%;
+		background: ivory;
+		height: 60px;
+		position: absolute;
+		bottom: 0;
+		border-top: 1px solid steelblue;
+	}
+
+	table {
+		border-collapse: collapse;
+		border: 1px solid steelblue;
+		width: 500px;
+		margin: 20px;
+		background: white;
+		font-family: Candara;
+		font-size: 10pt;
+	}
+	
+	thead {
+		background: aliceblue;
+		border-bottom: 1px solid steelblue;
+	}
+
+	
+	tr:nth-child(even) {
+		background: whitesmoke;
+	}
+	
+	th {
+		color: navy;
+		//font-size: 8pt;
+	}
+	
+	td {
+		//font-size: 8pt;
+	}
+  </style>
 </head>
-<body>
-	<div class="selectable_">
-		<table style="border-collapse: collapse; border: 1px solid black;">
-			<colgroup>
-				<col width="80" />
-				<col width="80" />
-				<col width="80" />
-			</colgroup>
-			<thead style="background: lightgray;">
-				<th class="selectabdle">A1</th>
+<body style="background: lightgray; margin: 0;">
+	<div style="width: 100%; height: 30px; background: aliceblue; border-bottom: 1px solid steelblue;">
+		<button style="text-align: center;">A</button>
+		<button>B</button>
+		<button>C</button>
+	</div>
+	<div id="pagesdiv" style="background: gray; position: absolute; left: 20px; margin-top: 20px;">
+	</div>
+	<table id="resizable">
+		<colgroup>
+			<col />
+			<col />
+			<col />
+		</colgroup>
+		<thead>
+			<tr>
+				<th>A1</th>
 				<th>B1</th>
 				<th>C1</th>
-			</thead>
-			<body>
-				<tr style="background: white;">
-					<td>A1</td>
-					<td>B1</td>
-					<td>C1</td>
-				</tr>
-			</body>
-		</table>
-	</div>
+			</tr>
+		</thead>
+		<body>
+			<tr>
+				<td>A1</td>
+				<td>B1</td>
+				<td>C1</td>
+			</tr>
+		</body>
+	</table>
 </body>
 </html>
