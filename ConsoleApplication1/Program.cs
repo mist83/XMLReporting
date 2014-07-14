@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +14,7 @@ using MediaForge3.Common.DataContracts.TMS.Programs;
 
 namespace ConsoleApplication1
 {
-    public class Program
+    public class _
     {
         private static ManualResetEventSlim slim = new ManualResetEventSlim(false);
 
@@ -21,11 +23,14 @@ namespace ConsoleApplication1
 
         static void Main(string[] args)
         {
+            TestDataTableAccess();
+
+            GoString();
             //EventLogTraceListener e = new EventLogTraceListener()
             //DelimitedListTraceListener d= new DelimitedListTraceListener("") ;
             //d.TraceOutputOptions = TraceOptions.ThreadId
             //TraceSource ts = new TraceSource()
-
+            
             Stopwatch sw2 = Stopwatch.StartNew();
             for (int i = 1; i <= upperBound; i++)
             {
@@ -60,7 +65,71 @@ namespace ConsoleApplication1
 
             slim.Wait();
             sw2.Stop();
+        }
 
+        public static void TestDataTableAccess()
+        {
+            DataTable table = new DataTable();
+            table.Columns.Add("MyColumn", typeof(int));
+            table.Rows.Add(1);
+
+            int j = 0;
+            Stopwatch sw1 = Stopwatch.StartNew();
+            for (int i = 0; i < 1000000; i++)
+                j += (int)table.Rows[0]["MyColumn"];
+            sw1.Stop();
+
+            j = 0;
+            Stopwatch sw2 = Stopwatch.StartNew();
+            for (int i = 0; i < 1000000; i++)
+                j += (int)table.Rows[0]["mycolumn"];
+            sw2.Stop();
+
+            Debug.WriteLine("Time: " + sw1.Elapsed);
+            Debug.WriteLine("Time: " + sw2.Elapsed);
+        }
+
+        [ComImport]
+        [Guid("550e8400-e29b-41d4-a716-446655450000")]
+        [CoClass(typeof(ConsoleWriter))]
+        public interface IMessageWriter
+        {
+            void WriteHello();
+        }
+
+        public class ConsoleWriter : IMessageWriter
+        {
+            public void WriteHello()
+            {
+                Console.WriteLine("Hello");
+            }
+        }
+
+        public static unsafe void Go()
+        {
+            IMessageWriter messageWriter = new IMessageWriter();
+            messageWriter.WriteHello();
+            SortedDictionary<string, string> x = new SortedDictionary<string, string>();
+        }
+
+        public static unsafe void GoString()
+        {
+            String first = "Hello";
+            Debug.WriteLine(first);
+            first.ToUpper();
+            Debug.WriteLine(first);
+            first.MutateToUpper();
+            Debug.WriteLine(first);
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        public struct Union
+        {
+            [FieldOffset(0)]
+            public uint Value;
+
+            [FieldOffset(3)]
+            public byte AsByte;
         }
 
         private static void UseSQLCE()
@@ -222,6 +291,22 @@ namespace ConsoleApplication1
                 catch
                 {
                     Console.WriteLine("Can't even call 'return' on aborted thread");
+                }
+            }
+        }
+    }
+
+    public static class MyUtility
+    {
+        public static unsafe void MutateToUpper(this string @this)
+        {
+            if (@this == null) throw new NullReferenceException("MutateToUpper called on a null string.");
+
+            fixed (char* fixedCharacterArray = @this)
+            {
+                for (char* character = fixedCharacterArray; *character != 0; character++)
+                {
+                    *character = char.ToUpper(*character);
                 }
             }
         }
