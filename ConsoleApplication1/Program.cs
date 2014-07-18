@@ -14,6 +14,10 @@ using MediaForge3.Common.DataContracts.TMS.Programs;
 
 namespace ConsoleApplication1
 {
+    public class MyType
+    {
+    }
+
     public class _
     {
         private static ManualResetEventSlim slim = new ManualResetEventSlim(false);
@@ -21,8 +25,49 @@ namespace ConsoleApplication1
         private static int upperBound = 20;
         private static int completed = 0;
 
+        
+
         static void Main(string[] args)
         {
+            var type = Type.GetType("MyType");
+            var type2 = Type.GetType("ConsoleApplication1.MyType");
+            var type3 = Type.GetType("ConsoleApplication1.MyType, ConsoleApplication1");
+            
+            var typeName = typeof(MyType).AssemblyQualifiedName;
+
+            int loopI = 0;
+            for (loopI = 0; loopI < 20; loopI++)
+            {
+                if (loopI == 10)
+                {
+                    goto OutsideCondition;
+                }
+            }
+
+            OutsideCondition:
+            {
+
+                List<int> myValues = new List<int>(new int[] { 5, 9, 3, 4, 7, 12, 0, 15 });
+                List<int> newOnly = new List<int>(new int[] { 5, 7, 1, 11, 7, 19, 76, 18 });
+                List<int> newValues = new List<int>();
+
+                for (int i = 0; i < myValues.Count; i++)
+                {
+                    for (int x = 0; x < newOnly.Count; x++)
+                    {
+                        if (!myValues.Contains(newOnly[x]))
+                        {
+                            newValues.Add(newOnly[x]);
+                        }
+                    }
+                }
+            }
+            UseSQLCE();
+
+            return;
+
+            #region hide
+
             TestDataTableAccess();
 
             GoString();
@@ -30,7 +75,7 @@ namespace ConsoleApplication1
             //DelimitedListTraceListener d= new DelimitedListTraceListener("") ;
             //d.TraceOutputOptions = TraceOptions.ThreadId
             //TraceSource ts = new TraceSource()
-            
+
             Stopwatch sw2 = Stopwatch.StartNew();
             for (int i = 1; i <= upperBound; i++)
             {
@@ -65,6 +110,96 @@ namespace ConsoleApplication1
 
             slim.Wait();
             sw2.Stop();
+
+            #endregion
+        }
+
+        private static void UseSQLCE(string defaultDatabase = "XMLReporting.sdf", string defaultPassword = "password")
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            using (var store = new SQLCEStore(defaultDatabase, defaultPassword, true))
+            {
+                store.ExecuteSQL("CREATE TABLE Grouping([Key] nvarchar(4000), Value nvarchar(4000), [Order] int, ResultId uniqueidentifier)");
+                store.ExecuteSQL("CREATE TABLE Result(Id uniqueidentifier, EntityId uniqueidentifier, [Key] nvarchar(4000), Type nvarchar(12), Value nvarchar(4000), Formatting nvarchar(255))");
+                Debug.WriteLine("Creating database/table: {0}", sw.Elapsed);
+            }
+
+            sw.Reset();
+            sw.Start();
+
+            using (var store = new SQLCEStore(defaultDatabase, defaultPassword))
+            {
+                int totalItem = 0;
+
+                int entityCount = 50;
+                int resultsPerEntity = 5;
+                int groupsPerResult = 3;
+
+                for (int entityIndex = 0; entityIndex < entityCount; entityIndex++)
+                {
+                    Guid entityId = Guid.NewGuid();
+                    for (int resultIndex = 0; resultIndex < resultsPerEntity; resultIndex++)
+                    {
+                        for (int groupIndex = 0; groupIndex < groupsPerResult; groupIndex++)
+                        {
+                            Guid resultId = Guid.NewGuid();
+
+                            store.ExecuteSQL("INSERT INTO Grouping([Key], Value, [Order], ResultId) VALUES (@key, @value, @order, @resultId)",
+                                new KeyValuePair<string, object>("key", string.Format("Group {0} Key", groupIndex + 1)),
+                                new KeyValuePair<string, object>("value", string.Format("Group {0} Value", groupIndex + 1)),
+                                new KeyValuePair<string, object>("order", groupIndex + 1),
+                                new KeyValuePair<string, object>("resultId", resultId));
+
+                            string type = "";
+                            string value = "";
+                            switch (resultIndex)
+                            {
+                                case 0:
+                                    type = "int";
+                                    value = totalItem.ToString();
+                                    break;
+                                case 1:
+                                    type = "DateTime";
+                                    value = DateTime.Parse("1/1/2000").AddDays(totalItem).AddSeconds(totalItem).ToString();
+                                    break;
+                                case 2:
+                                    type = "string";
+                                    value = string.Format("string value {0}", totalItem);
+                                    break;
+                                case 3:
+                                    type = "decimal";
+                                    value = string.Format("{0}.{0}", totalItem);
+                                    break;
+                                case 4:
+                                    type = "JSON";
+                                    value = string.Format("{{ Property1: \"{0}\", Property2: \"Some value ({0})\" }}", totalItem);
+                                    break;
+                                default:
+                                    throw new IndexOutOfRangeException();
+                            }
+
+                            totalItem++;
+
+                            store.ExecuteSQL("INSERT INTO Result(Id, EntityId, [Key], Type, Value) VALUES (@id, @entityId, @key, @type, @value)",
+                                new KeyValuePair<string, object>("id", resultId),
+                                new KeyValuePair<string, object>("entityId", entityId),
+                                new KeyValuePair<string, object>("key", string.Format("{{COLUMN{0:00}}}", resultIndex + 1)),
+                                new KeyValuePair<string, object>("type", type),
+                                new KeyValuePair<string, object>("value", value));
+                        }
+                    }
+                }
+            }
+
+            Debug.WriteLine("Inserting records: {0}", sw.Elapsed);
+
+            sw.Reset();
+            sw.Start();
+            using (var store = new SQLCEStore(defaultDatabase, defaultPassword))
+            {
+                var table = store.GetDataTable("SELECT Grouping.*, Result.* FROM Grouping JOIN Result ON ResultId=Result.Id ORDER BY Result.EntityId, Grouping.[Order]");
+                Debug.WriteLine("Selecting from table: {0}", sw.Elapsed);
+            }
         }
 
         public static void TestDataTableAccess()
@@ -130,39 +265,6 @@ namespace ConsoleApplication1
 
             [FieldOffset(3)]
             public byte AsByte;
-        }
-
-        private static void UseSQLCE()
-        {
-            Stopwatch sw = Stopwatch.StartNew();
-            using (var store = new SQLCEStore("Friends.sdf", "pw", true))
-            {
-                store.ExecuteSQL("CREATE TABLE Friends(Id uniqueidentifier not null, Name nvarchar(4000), FavoriteFood nvarchar(4000))");
-                Debug.WriteLine("Creating database/table: {0}", sw.Elapsed);
-            }
-
-            sw.Reset();
-            sw.Start();
-            using (var store = new SQLCEStore("Friends.sdf", "pw"))
-            {
-                for (int i = 0; i < 25; i++)
-                {
-                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Mike"), new KeyValuePair<string, object>("favoriteFood", "Sushi"));
-                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Joe"), new KeyValuePair<string, object>("favoriteFood", "Pizza"));
-                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Daniel"), new KeyValuePair<string, object>("favoriteFood", "Burgers"));
-                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "JR"), new KeyValuePair<string, object>("favoriteFood", "Pancakes"));
-                    store.ExecuteSQL("INSERT INTO Friends(Id, Name, FavoriteFood) VALUES (@id, @name, @favoriteFood)", new KeyValuePair<string, object>("id", Guid.NewGuid()), new KeyValuePair<string, object>("name", "Kevin"), new KeyValuePair<string, object>("favoriteFood", "Hod dogs"));
-                }
-            }
-            Debug.WriteLine("Inserting records: {0}", sw.Elapsed);
-
-            sw.Reset();
-            sw.Start();
-            using (var store = new SQLCEStore("Friends.sdf", "pw"))
-            {
-                var table = store.GetDataTable("SELECT * FROM Friends ORDER BY Name");
-                Debug.WriteLine("Selecting from table: {0}", sw.Elapsed);
-            }
         }
 
         private static void TraceMe()
